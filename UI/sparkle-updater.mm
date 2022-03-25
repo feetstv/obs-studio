@@ -7,7 +7,7 @@ static inline bool equali(NSString *a, NSString *b)
 }
 
 @interface OBSSparkleUpdateDelegate
-	: NSObject <SUUpdaterDelegate, SUVersionComparison> {
+	: NSObject <SPUUpdaterDelegate, SUVersionComparison> {
 }
 @property (nonatomic) bool updateToUndeployed;
 @end
@@ -18,7 +18,7 @@ static inline bool equali(NSString *a, NSString *b)
 @synthesize updateToUndeployed;
 
 - (SUAppcastItem *)bestValidUpdateWithDeltasInAppcast:(SUAppcast *)appcast
-					   forUpdater:(SUUpdater *)updater
+					   forUpdater:(SPUUpdater *)updater
 {
 	SUAppcastItem *item = appcast.items.firstObject;
 	if (!appcast.items.firstObject)
@@ -58,7 +58,7 @@ static inline bool equali(NSString *a, NSString *b)
 }
 
 - (SUAppcastItem *)bestValidUpdateInAppcast:(SUAppcast *)appcast
-				 forUpdater:(SUUpdater *)updater
+				 forUpdater:(SPUUpdater *)updater
 {
 	SUAppcastItem *selected = [self
 		bestValidUpdateWithDeltasInAppcast:appcast
@@ -73,7 +73,7 @@ static inline bool equali(NSString *a, NSString *b)
 	return selected;
 }
 
-- (NSString *)feedURLStringForUpdater:(SUUpdater *)updater
+- (NSString *)feedURLStringForUpdater:(SPUUpdater *)updater
 {
 	//URL from Info.plist takes precedence because there may be bundles with
 	//differing feed URLs on the system
@@ -89,7 +89,7 @@ static inline bool equali(NSString *a, NSString *b)
 	return NSOrderedSame;
 }
 
-- (id<SUVersionComparison>)versionComparatorForUpdater:(SUUpdater *)__unused
+- (id<SUVersionComparison>)versionComparatorForUpdater:(SPUUpdater *)__unused
 	updater
 {
 	return self;
@@ -123,16 +123,15 @@ static inline NSBundle *find_bundle()
 	return nil;
 }
 
-static SUUpdater *updater;
+static SPUStandardUpdaterController *updater;
 
 static OBSSparkleUpdateDelegate *delegate;
 
 void init_sparkle_updater(bool update_to_undeployed)
 {
-	updater = [SUUpdater updaterForBundle:find_bundle()];
 	delegate = [[OBSSparkleUpdateDelegate alloc] init];
 	delegate.updateToUndeployed = update_to_undeployed;
-	updater.delegate = delegate;
+    updater = [[SPUStandardUpdaterController alloc] initWithUpdaterDelegate:delegate userDriverDelegate:nil];
 }
 
 void trigger_sparkle_update()
