@@ -2,7 +2,7 @@ add_subdirectory(obs-frontend-api)
 
 option(ENABLE_UI "Enable building with UI (requires Qt)" ON)
 if(NOT ENABLE_UI)
-  message(STATUS "OBS:  DISABLED   OBS UI")
+  obs_status(DISABLED "OBS UI")
   return()
 endif()
 
@@ -25,6 +25,12 @@ if(TARGET obs-browser
   target_include_directories(
     obs-browser-panels INTERFACE ${CMAKE_SOURCE_DIR}/plugins/obs-browser/panel)
 endif()
+
+set(OAUTH_BASE_URL
+    "https://auth.obsproject.com/"
+    CACHE STRING "Default OAuth base URL")
+
+mark_as_advanced(OAUTH_BASE_URL)
 
 if(NOT DEFINED TWITCH_CLIENTID
    OR "${TWITCH_CLIENTID}" STREQUAL ""
@@ -72,10 +78,15 @@ find_package(CURL REQUIRED)
 add_subdirectory(frontend-plugins)
 add_executable(obs)
 
+set(UI_COMPONENTS_WIN "")
+if(QT_VERSION EQUAL 5)
+  set(UI_COMPONENTS_WIN "WinExtras")
+endif()
+
 find_qt(
   VERSION ${QT_VERSION}
   COMPONENTS Widgets Network Svg Xml
-  COMPONENTS_WIN WinExtras
+  COMPONENTS_WIN ${UI_COMPONENTS_WIN}
   COMPONENTS_LINUX Gui)
 
 target_link_libraries(obs PRIVATE Qt::Widgets Qt::Svg Qt::Xml Qt::Network)
@@ -140,6 +151,8 @@ target_sources(
           crash-report.cpp
           crash-report.hpp
           display-helpers.hpp
+          streaming-helpers.cpp
+          streaming-helpers.hpp
           platform.hpp
           qt-display.cpp
           qt-display.hpp
@@ -160,8 +173,6 @@ target_sources(
           audio-encoders.cpp
           audio-encoders.hpp
           balance-slider.hpp
-          combobox-ignorewheel.cpp
-          combobox-ignorewheel.hpp
           clickable-label.hpp
           double-slider.cpp
           double-slider.hpp
@@ -338,7 +349,11 @@ if(OS_WINDOWS)
             win-update/win-update-helpers.hpp
             ${CMAKE_BINARY_DIR}/obs.rc)
 
-  target_link_libraries(obs PRIVATE crypt32 OBS::blake2 Qt::WinExtras)
+  if(QT_VERSION EQUAL 5)
+    target_link_libraries(obs PRIVATE crypt32 OBS::blake2 Qt::WinExtras)
+  else()
+    target_link_libraries(obs PRIVATE crypt32 OBS::blake2)
+  endif()
 
   target_compile_features(obs PRIVATE cxx_std_17)
 

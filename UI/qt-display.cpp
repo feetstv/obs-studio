@@ -42,6 +42,9 @@ protected:
 			else
 				mTimerId = startTimer(67); // Arbitrary
 			break;
+		case QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed:
+			display->DestroyDisplay();
+			break;
 		case QEvent::Expose:
 			createOBSDisplay();
 			break;
@@ -52,7 +55,10 @@ protected:
 		return result;
 	}
 
-	void timerEvent(QTimerEvent *) { createOBSDisplay(true); }
+	void timerEvent(QTimerEvent *)
+	{
+		createOBSDisplay(display->isVisible());
+	}
 
 private:
 	void createOBSDisplay(bool force = false)
@@ -197,6 +203,8 @@ bool OBSQTDisplay::nativeEvent(const QByteArray &, void *message, long *)
 	case WM_DISPLAYCHANGE:
 		OnDisplayChange();
 	}
+#else
+	UNUSED_PARAMETER(message);
 #endif
 
 	return false;
@@ -221,6 +229,14 @@ QPaintEngine *OBSQTDisplay::paintEngine() const
 	return nullptr;
 }
 
-void OBSQTDisplay::OnMove() {}
+void OBSQTDisplay::OnMove()
+{
+	if (display)
+		obs_display_update_color_space(display);
+}
 
-void OBSQTDisplay::OnDisplayChange() {}
+void OBSQTDisplay::OnDisplayChange()
+{
+	if (display)
+		obs_display_update_color_space(display);
+}

@@ -31,8 +31,6 @@ target_sources(
           obs-encoder.c
           obs-encoder.h
           obs-ffmpeg-compat.h
-          obs-hevc.c
-          obs-hevc.h
           obs-hotkey.c
           obs-hotkey.h
           obs-hotkeys.h
@@ -203,6 +201,10 @@ target_sources(
           util/darray.h
           util/util.hpp)
 
+if(ENABLE_HEVC)
+  target_sources(libobs PRIVATE obs-hevc.c obs-hevc.h)
+endif()
+
 # Contents of "data" dir already automatically added to bundles on macOS
 if(NOT OS_MACOS)
   target_sources(
@@ -210,6 +212,7 @@ if(NOT OS_MACOS)
     PRIVATE data/area.effect
             data/bicubic_scale.effect
             data/bilinear_lowres_scale.effect
+            data/color.effect
             data/default.effect
             data/default_rect.effect
             data/deinterlace_base.effect
@@ -385,7 +388,7 @@ elseif(OS_POSIX)
 
   if(ENABLE_PULSEAUDIO)
     find_package(PulseAudio REQUIRED)
-    message(STATUS "OBS: PulseAudio found - audio monitoring enabled")
+    obs_status(STATUS "-> PulseAudio found - audio monitoring enabled")
     target_sources(
       libobs
       PRIVATE audio-monitoring/pulse/pulseaudio-output.c
@@ -396,6 +399,7 @@ elseif(OS_POSIX)
 
     target_link_libraries(libobs PRIVATE ${PULSEAUDIO_LIBRARY})
   else()
+    obs_status(WARNING "-> No audio backend found - audio monitoring disabled")
     target_sources(libobs PRIVATE audio-monitoring/null/null-audio-monitoring.c)
   endif()
 

@@ -32,6 +32,10 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Global project options
+option(ENABLE_HEVC "Enable HEVC encoders" OFF)
+if(ENABLE_HEVC)
+  add_compile_definitions(ENABLE_HEVC)
+endif()
 option(BUILD_FOR_DISTRIBUTION "Build for distribution (enables optimisations)"
        OFF)
 option(ENABLE_UI "Enable building with UI (requires Qt)" ON)
@@ -55,6 +59,7 @@ elseif(OS_MACOS)
 elseif(OS_POSIX)
   option(LINUX_PORTABLE "Build portable version (Linux)" OFF)
   option(USE_XDG "Utilize XDG Base Directory Specification (Linux)" ON)
+  option(ENABLE_PULSEAUDIO "Enable PulseAudio support" ON)
   if(OS_LINUX)
     option(ENABLE_WAYLAND "Enable building with support for Wayland (Linux)" ON)
     option(BUILD_FOR_PPA "Build for PPA distribution" OFF)

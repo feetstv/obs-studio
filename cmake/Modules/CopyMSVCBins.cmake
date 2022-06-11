@@ -131,6 +131,11 @@ file(
   "${SSL_INCLUDE_DIR}/bin/ssleay32*.dll"
   "${SSL_INCLUDE_DIR}/bin/libeay32*.dll")
 
+if(NOT DEFINED CURL_INCLUDE_DIR AND TARGET CURL::libcurl)
+  get_target_property(CURL_INCLUDE_DIR CURL::libcurl
+                      INTERFACE_INCLUDE_DIRECTORIES)
+endif()
+
 file(
   GLOB
   CURL_BIN_FILES
@@ -174,57 +179,61 @@ file(GLOB RNNOISE_BIN_FILES
      "${RNNOISE_INCLUDE_DIR}/../bin${_bin_suffix}/rnnoise*.dll"
      "${RNNOISE_INCLUDE_DIR}/../bin/rnnoise*.dll")
 
+set(QtCore_DIR "${Qt${QT_VERSION}Core_DIR}")
+cmake_path(SET QtCore_DIR_NORM NORMALIZE "${QtCore_DIR}/../../..")
+set(QtCore_BIN_DIR "${QtCore_DIR_NORM}bin")
+set(QtCore_PLUGIN_DIR "${QtCore_DIR_NORM}plugins")
+obs_status(STATUS "QtCore_BIN_DIR: ${QtCore_BIN_DIR}")
+obs_status(STATUS "QtCore_PLUGIN_DIR: ${QtCore_PLUGIN_DIR}")
+
 file(
   GLOB
   QT_DEBUG_BIN_FILES
-  "${Qt5Core_DIR}/../../../bin/Qt5Cored.dll"
-  "${Qt5Core_DIR}/../../../bin/Qt5Guid.dll"
-  "${Qt5Core_DIR}/../../../bin/Qt5Widgetsd.dll"
-  "${Qt5Core_DIR}/../../../bin/Qt5WinExtrasd.dll"
-  "${Qt5Core_DIR}/../../../bin/Qt5Svgd.dll"
-  "${Qt5Core_DIR}/../../../bin/Qt5Xmld.dll"
-  "${Qt5Core_DIR}/../../../bin/Qt5Networkd.dll"
-  "${Qt5Core_DIR}/../../../bin/libGLESv2d.dll"
-  "${Qt5Core_DIR}/../../../bin/libEGLd.dll")
+  "${QtCore_BIN_DIR}/Qt${QT_VERSION}Cored.dll"
+  "${QtCore_BIN_DIR}/Qt${QT_VERSION}Guid.dll"
+  "${QtCore_BIN_DIR}/Qt${QT_VERSION}Widgetsd.dll"
+  "${QtCore_BIN_DIR}/Qt${QT_VERSION}WinExtrasd.dll"
+  "${QtCore_BIN_DIR}/Qt${QT_VERSION}Svgd.dll"
+  "${QtCore_BIN_DIR}/Qt${QT_VERSION}Xmld.dll"
+  "${QtCore_BIN_DIR}/Qt${QT_VERSION}Networkd.dll"
+  "${QtCore_BIN_DIR}/libGLESv2d.dll"
+  "${QtCore_BIN_DIR}/libEGLd.dll")
 file(GLOB QT_DEBUG_PLAT_BIN_FILES
-     "${Qt5Core_DIR}/../../../plugins/platforms/qwindowsd.dll")
+     "${QtCore_PLUGIN_DIR}/platforms/qwindowsd.dll")
 file(GLOB QT_DEBUG_STYLES_BIN_FILES
-     "${Qt5Core_DIR}/../../../plugins/styles/qwindowsvistastyled.dll")
+     "${QtCore_PLUGIN_DIR}/styles/qwindowsvistastyled.dll")
 file(GLOB QT_DEBUG_ICONENGINE_BIN_FILES
-     "${Qt5Core_DIR}/../../../plugins/iconengines/qsvgicond.dll")
+     "${QtCore_PLUGIN_DIR}/iconengines/qsvgicond.dll")
 file(
   GLOB
   QT_DEBUG_IMAGEFORMATS_BIN_FILES
-  "${Qt5Core_DIR}/../../../plugins/imageformats/qsvgd.dll"
-  "${Qt5Core_DIR}/../../../plugins/imageformats/qgifd.dll"
-  "${Qt5Core_DIR}/../../../plugins/imageformats/qjpegd.dll")
+  "${QtCore_PLUGIN_DIR}/imageformats/qsvgd.dll"
+  "${QtCore_PLUGIN_DIR}/imageformats/qgifd.dll"
+  "${QtCore_PLUGIN_DIR}/imageformats/qjpegd.dll")
 
 file(
   GLOB
   QT_BIN_FILES
-  "${Qt5Core_DIR}/../../../bin/Qt5Core.dll"
-  "${Qt5Core_DIR}/../../../bin/Qt5Gui.dll"
-  "${Qt5Core_DIR}/../../../bin/Qt5Widgets.dll"
-  "${Qt5Core_DIR}/../../../bin/Qt5WinExtras.dll"
-  "${Qt5Core_DIR}/../../../bin/Qt5Svg.dll"
-  "${Qt5Core_DIR}/../../../bin/Qt5Xml.dll"
-  "${Qt5Core_DIR}/../../../bin/Qt5Network.dll"
-  "${Qt5Core_DIR}/../../../bin/libGLESv2.dll"
-  "${Qt5Core_DIR}/../../../bin/libEGL.dll")
-file(GLOB QT_PLAT_BIN_FILES
-     "${Qt5Core_DIR}/../../../plugins/platforms/qwindows.dll")
+  "${QtCore_BIN_DIR}/Qt${QT_VERSION}Core.dll"
+  "${QtCore_BIN_DIR}/Qt${QT_VERSION}Gui.dll"
+  "${QtCore_BIN_DIR}/Qt${QT_VERSION}Widgets.dll"
+  "${QtCore_BIN_DIR}/Qt${QT_VERSION}WinExtras.dll"
+  "${QtCore_BIN_DIR}/Qt${QT_VERSION}Svg.dll"
+  "${QtCore_BIN_DIR}/Qt${QT_VERSION}Xml.dll"
+  "${QtCore_BIN_DIR}/Qt${QT_VERSION}Network.dll"
+  "${QtCore_BIN_DIR}/libGLESv2.dll"
+  "${QtCore_BIN_DIR}/libEGL.dll")
+file(GLOB QT_PLAT_BIN_FILES "${QtCore_PLUGIN_DIR}/platforms/qwindows.dll")
 file(GLOB QT_STYLES_BIN_FILES
-     "${Qt5Core_DIR}/../../../plugins/styles/qwindowsvistastyle.dll")
+     "${QtCore_PLUGIN_DIR}/styles/qwindowsvistastyle.dll")
 file(GLOB QT_ICONENGINE_BIN_FILES
-     "${Qt5Core_DIR}/../../../plugins/iconengines/qsvgicon.dll")
+     "${QtCore_PLUGIN_DIR}/iconengines/qsvgicon.dll")
 file(
-  GLOB
-  QT_IMAGEFORMATS_BIN_FILES
-  "${Qt5Core_DIR}/../../../plugins/imageformats/qsvg.dll"
-  "${Qt5Core_DIR}/../../../plugins/imageformats/qgif.dll"
-  "${Qt5Core_DIR}/../../../plugins/imageformats/qjpeg.dll")
+  GLOB QT_IMAGEFORMATS_BIN_FILES "${QtCore_PLUGIN_DIR}/imageformats/qsvg.dll"
+  "${QtCore_PLUGIN_DIR}/imageformats/qgif.dll"
+  "${QtCore_PLUGIN_DIR}/imageformats/qjpeg.dll")
 
-file(GLOB QT_ICU_BIN_FILES "${Qt5Core_DIR}/../../../bin/icu*.dll")
+file(GLOB QT_ICU_BIN_FILES "${QtCore_BIN_DIR}/icu*.dll")
 
 set(ALL_BASE_BIN_FILES
     ${FFMPEG_BIN_FILES}
@@ -280,31 +289,32 @@ foreach(
   endif()
 endforeach()
 
-message(STATUS "FFmpeg files: ${FFMPEG_BIN_FILES}")
-message(STATUS "x264 files: ${X264_BIN_FILES}")
-message(STATUS "Libfdk files: ${LIBFDK_BIN_FILES}")
-message(STATUS "Freetype files: ${FREETYPE_BIN_FILES}")
-message(STATUS "rnnoise files: ${RNNOISE_BIN_FILES}")
-message(STATUS "curl files: ${CURL_BIN_FILES}")
-message(STATUS "lua files: ${LUA_BIN_FILES}")
-message(STATUS "ssl files: ${SSL_BIN_FILES}")
-message(STATUS "zlib files: ${ZLIB_BIN_FILES}")
-message(STATUS "QT Debug files: ${QT_DEBUG_BIN_FILES}")
-message(STATUS "QT Debug Platform files: ${QT_DEBUG_PLAT_BIN_FILES}")
-message(STATUS "QT Debug Styles files: ${QT_DEBUG_STYLES_BIN_FILES}")
-message(STATUS "QT Debug Iconengine files: ${QT_DEBUG_ICONENGINE_BIN_FILES}")
-message(STATUS "QT Debug Imageformat files: ${QT_DEBUG_IMAGEFORMATS_BIN_FILES}")
-message(STATUS "QT Release files: ${QT_BIN_FILES}")
-message(STATUS "QT Release Platform files: ${QT_PLAT_BIN_FILES}")
-message(STATUS "QT Release Styles files: ${QT_STYLES_BIN_FILES}")
-message(STATUS "QT Release Iconengine files: ${QT_ICONENGINE_BIN_FILES}")
-message(STATUS "QT Release Imageformat files: ${QT_IMAGEFORMATS_BIN_FILES}")
-message(STATUS "QT ICU files: ${QT_ICU_BIN_FILES}")
+obs_status(STATUS "FFmpeg files: ${FFMPEG_BIN_FILES}")
+obs_status(STATUS "x264 files: ${X264_BIN_FILES}")
+obs_status(STATUS "Libfdk files: ${LIBFDK_BIN_FILES}")
+obs_status(STATUS "Freetype files: ${FREETYPE_BIN_FILES}")
+obs_status(STATUS "rnnoise files: ${RNNOISE_BIN_FILES}")
+obs_status(STATUS "curl files: ${CURL_BIN_FILES}")
+obs_status(STATUS "lua files: ${LUA_BIN_FILES}")
+obs_status(STATUS "ssl files: ${SSL_BIN_FILES}")
+obs_status(STATUS "zlib files: ${ZLIB_BIN_FILES}")
+obs_status(STATUS "Qt Debug files: ${QT_DEBUG_BIN_FILES}")
+obs_status(STATUS "Qt Debug Platform files: ${QT_DEBUG_PLAT_BIN_FILES}")
+obs_status(STATUS "Qt Debug Styles files: ${QT_DEBUG_STYLES_BIN_FILES}")
+obs_status(STATUS "Qt Debug Iconengine files: ${QT_DEBUG_ICONENGINE_BIN_FILES}")
+obs_status(STATUS
+           "Qt Debug Imageformat files: ${QT_DEBUG_IMAGEFORMATS_BIN_FILES}")
+obs_status(STATUS "Qt Release files: ${QT_BIN_FILES}")
+obs_status(STATUS "Qt Release Platform files: ${QT_PLAT_BIN_FILES}")
+obs_status(STATUS "Qt Release Styles files: ${QT_STYLES_BIN_FILES}")
+obs_status(STATUS "Qt Release Iconengine files: ${QT_ICONENGINE_BIN_FILES}")
+obs_status(STATUS "Qt Release Imageformat files: ${QT_IMAGEFORMATS_BIN_FILES}")
+obs_status(STATUS "Qt ICU files: ${QT_ICU_BIN_FILES}")
 
 foreach(BinFile ${ALL_BASE_BIN_FILES})
-  message(
+  obs_status(
     STATUS
-      "copying ${BinFile} to ${CMAKE_SOURCE_DIR}/additional_install_files/exec${_bin_suffix}"
+    "copying ${BinFile} to ${CMAKE_SOURCE_DIR}/additional_install_files/exec${_bin_suffix}"
   )
   file(
     COPY "${BinFile}"
@@ -313,9 +323,9 @@ foreach(BinFile ${ALL_BASE_BIN_FILES})
 endforeach()
 
 foreach(BinFile ${ALL_REL_BIN_FILES})
-  message(
+  obs_status(
     STATUS
-      "copying ${BinFile} to ${CMAKE_SOURCE_DIR}/additional_install_files/exec${_bin_suffix}r"
+    "copying ${BinFile} to ${CMAKE_SOURCE_DIR}/additional_install_files/exec${_bin_suffix}r"
   )
   file(
     COPY "${BinFile}"
@@ -324,9 +334,9 @@ foreach(BinFile ${ALL_REL_BIN_FILES})
 endforeach()
 
 foreach(BinFile ${ALL_DBG_BIN_FILES})
-  message(
+  obs_status(
     STATUS
-      "copying ${BinFile} to ${CMAKE_SOURCE_DIR}/additional_install_files/exec${_bin_suffix}d"
+    "copying ${BinFile} to ${CMAKE_SOURCE_DIR}/additional_install_files/exec${_bin_suffix}d"
   )
   file(
     COPY "${BinFile}"

@@ -33,13 +33,13 @@
 
 #include <QFile>
 #include <QGuiApplication>
-#include <QProxyStyle>
 #include <QScreen>
 #include <QProcess>
 #include <QAccessible>
 
 #include "qt-wrappers.hpp"
 #include "obs-app.hpp"
+#include "obs-proxy-style.hpp"
 #include "log-viewer.hpp"
 #include "slider-ignorewheel.hpp"
 #include "window-basic-main.hpp"
@@ -389,20 +389,23 @@ static void do_log(int log_level, const char *msg, va_list args, void *param)
 			OutputDebugStringW(wide_buf.c_str());
 		}
 	}
-#else
-	def_log_handler(log_level, msg, args2, nullptr);
-	va_end(args2);
 #endif
 
 	if (log_level <= LOG_INFO || log_verbose) {
-		if (too_many_repeated_entries(logFile, msg, str))
-			return;
-		LogStringChunk(logFile, str, log_level);
+#ifndef _WIN32
+		def_log_handler(log_level, msg, args2, nullptr);
+#endif
+		if (!too_many_repeated_entries(logFile, msg, str))
+			LogStringChunk(logFile, str, log_level);
 	}
 
 #if defined(_WIN32) && defined(OBS_DEBUGBREAK_ON_ERROR)
 	if (log_level <= LOG_ERROR && IsDebuggerPresent())
 		__debugbreak();
+#endif
+
+#ifndef _WIN32
+	va_end(args2);
 #endif
 }
 
@@ -1117,6 +1120,7 @@ bool OBSApp::SetTheme(std::string name, std::string path)
 	QString mpath = QString("file:///") + path.c_str();
 	setPalette(defaultPalette);
 	ParseExtraThemeData(path.c_str());
+	setStyle(new OBSIgnoreWheelProxyStyle);
 	setStyleSheet(mpath);
 	QColor color = palette().text().color();
 	themeDarkMode = !(color.redF() < 0.5);
@@ -1415,8 +1419,7 @@ bool OBSApp::OBSInit()
 	qRegisterMetaType<VoidFunc>();
 
 #if !defined(_WIN32) && !defined(__APPLE__)
-	obs_set_nix_platform(OBS_NIX_PLATFORM_X11_GLX);
-	if (QApplication::platformName() == "xcb" && getenv("OBS_USE_EGL")) {
+	if (QApplication::platformName() == "xcb") {
 		obs_set_nix_platform(OBS_NIX_PLATFORM_X11_EGL);
 		blog(LOG_INFO, "Using EGL/X11");
 	}
@@ -2343,13 +2346,16 @@ static void load_debug_privilege(void)
 
 #define CONFIG_PATH BASE_PATH "/config"
 
-#ifndef LINUX_PORTABLE
-#define LINUX_PORTABLE 0
+#if defined(LINUX_PORTABLE) || defined(_WIN32)
+#define ALLOW_PORTABLE_MODE 1
+#else
+#define ALLOW_PORTABLE_MODE 0
 #endif
 
 int GetConfigPath(char *path, size_t size, const char *name)
 {
-	if (LINUX_PORTABLE && portable_mode) {
+#if ALLOW_PORTABLE_MODE
+	if (portable_mode) {
 		if (name && *name) {
 			return snprintf(path, size, CONFIG_PATH "/%s", name);
 		} else {
@@ -2358,11 +2364,15 @@ int GetConfigPath(char *path, size_t size, const char *name)
 	} else {
 		return os_get_config_path(path, size, name);
 	}
+#else
+	return os_get_config_path(path, size, name);
+#endif
 }
 
 char *GetConfigPathPtr(const char *name)
 {
-	if (LINUX_PORTABLE && portable_mode) {
+#if ALLOW_PORTABLE_MODE
+	if (portable_mode) {
 		char path[512];
 
 		if (snprintf(path, sizeof(path), CONFIG_PATH "/%s", name) > 0) {
@@ -2373,6 +2383,9 @@ char *GetConfigPathPtr(const char *name)
 	} else {
 		return os_get_config_path_ptr(name);
 	}
+#else
+	return os_get_config_path_ptr(name);
+#endif
 }
 
 int GetProgramDataPath(char *path, size_t size, const char *name)
@@ -2874,7 +2887,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-#if defined(LINUX_PORTABLE)
+#if ALLOW_PORTABLE_MODE
 	if (!portable_mode) {
 		portable_mode =
 			os_file_exists(BASE_PATH "/portable_mode") ||

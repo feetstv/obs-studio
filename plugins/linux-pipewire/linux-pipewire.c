@@ -22,7 +22,7 @@
 #include <obs-module.h>
 #include <obs-nix-platform.h>
 
-#include "pipewire-common.h"
+#include <pipewire/pipewire.h>
 #include "pipewire-capture.h"
 
 OBS_DECLARE_MODULE()
@@ -34,7 +34,7 @@ MODULE_EXPORT const char *obs_module_description(void)
 
 bool obs_module_load(void)
 {
-	obs_pipewire_load();
+	pw_init(NULL, NULL);
 
 	// OBS PipeWire Screen Capture
 	switch (obs_get_nix_platform()) {
@@ -44,8 +44,6 @@ bool obs_module_load(void)
 	case OBS_NIX_PLATFORM_X11_EGL:
 		pipewire_capture_load();
 		break;
-	case OBS_NIX_PLATFORM_X11_GLX:
-		break;
 	}
 
 	return true;
@@ -53,5 +51,7 @@ bool obs_module_load(void)
 
 void obs_module_unload(void)
 {
-	obs_pipewire_unload();
+#if PW_CHECK_VERSION(0, 3, 49)
+	pw_deinit();
+#endif
 }

@@ -68,6 +68,7 @@ OBSAdvAudioCtrl::OBSAdvAudioCtrl(QGridLayout *, obs_source_t *source_)
 			     this);
 	balChangedSignal.Connect(handler, "audio_balance",
 				 OBSSourceBalanceChanged, this);
+	renameSignal.Connect(handler, "rename", OBSSourceRenamed, this);
 
 	hlayout = new QHBoxLayout();
 	hlayout->setContentsMargins(0, 0, 0, 0);
@@ -95,7 +96,7 @@ OBSAdvAudioCtrl::OBSAdvAudioCtrl(QGridLayout *, obs_source_t *source_)
 	iconLabel->setFixedSize(16, 16);
 	iconLabel->setStyleSheet("background: none");
 
-	nameLabel->setText(sourceName);
+	SetSourceName(sourceName);
 	nameLabel->setAlignment(Qt::AlignVCenter);
 
 	bool isActive = obs_source_active(source);
@@ -358,6 +359,14 @@ void OBSAdvAudioCtrl::OBSSourceBalanceChanged(void *param, calldata_t *calldata)
 	int balance = (float)calldata_float(calldata, "balance") * 100.0f;
 	QMetaObject::invokeMethod(reinterpret_cast<OBSAdvAudioCtrl *>(param),
 				  "SourceBalanceChanged", Q_ARG(int, balance));
+}
+
+void OBSAdvAudioCtrl::OBSSourceRenamed(void *param, calldata_t *calldata)
+{
+	QString newName = QT_UTF8(calldata_string(calldata, "new_name"));
+
+	QMetaObject::invokeMethod(reinterpret_cast<OBSAdvAudioCtrl *>(param),
+				  "SetSourceName", Q_ARG(QString &, newName));
 }
 
 /* ------------------------------------------------------------------------- */
@@ -688,4 +697,9 @@ void OBSAdvAudioCtrl::SetVolumeWidget(VolumeType type)
 void OBSAdvAudioCtrl::SetIconVisible(bool visible)
 {
 	visible ? iconLabel->show() : iconLabel->hide();
+}
+
+void OBSAdvAudioCtrl::SetSourceName(QString &newName)
+{
+	TruncateLabel(nameLabel, newName);
 }

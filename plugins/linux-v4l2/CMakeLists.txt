@@ -2,7 +2,7 @@ project(linux-v4l2)
 
 option(ENABLE_V4L2 "Build OBS with v4l2 support" ON)
 if(NOT ENABLE_V4L2)
-  message(STATUS "OBS:  DISABLED   linux-v4l2")
+  obs_status(DISABLED "linux-v4l2")
   return()
 endif()
 
@@ -23,13 +23,12 @@ target_link_libraries(
 
 set_target_properties(linux-v4l2 PROPERTIES FOLDER "plugins")
 
-if(NOT ENABLE_UDEV)
-  target_compile_definitions(linux-v4l2 PRIVATE HAVE_UDEV)
-else()
+if(ENABLE_UDEV)
   find_package(Udev REQUIRED)
   target_sources(linux-v4l2 PRIVATE v4l2-udev.c)
 
   target_link_libraries(linux-v4l2 PRIVATE Udev::Udev)
+  target_compile_definitions(linux-v4l2 PRIVATE HAVE_UDEV)
 endif()
 
 setup_plugin_target(linux-v4l2)

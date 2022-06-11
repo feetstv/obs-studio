@@ -85,7 +85,7 @@ function(setup_plugin_target target)
     COMMENT "Installing ${target} to OBS rundir"
     VERBATIM)
 
-  message(STATUS "OBS:   ENABLED   ${target}")
+  obs_status(ENABLED "${target}")
 endfunction()
 
 # Helper function to set up OBS scripting plugin targets
@@ -127,7 +127,7 @@ function(setup_script_plugin_target target)
     COMMENT "Installing ${target} to OBS rundir"
     VERBATIM)
 
-  message(STATUS "OBS:   ENABLED   ${target}")
+  obs_status(ENABLED "${target}")
 endfunction()
 
 # Helper function to set up target resources (e.g. L10N files)
@@ -157,8 +157,7 @@ function(add_target_resource target resource destination)
 
   install(
     FILES ${resource}
-    DESTINATION
-      ${OBS_OUTPUT_DIR}/$<CONFIG>/${OBS_DATA_DESTINATION}/${destination}
+    DESTINATION ${OBS_DATA_DESTINATION}/${destination}
     COMPONENT obs_${target}
     EXCLUDE_FROM_ALL)
 endfunction()
@@ -296,28 +295,6 @@ function(export_target target)
     EXCLUDE_FROM_ALL)
 endfunction()
 
-# Helper function to install header files
-function(install_headers target)
-  install(
-    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/"
-    DESTINATION ${OBS_INCLUDE_DESTINATION}
-    COMPONENT obs_libraries
-    EXCLUDE_FROM_ALL FILES_MATCHING
-    PATTERN "*.h"
-    PATTERN "*.hpp"
-    PATTERN "cmake" EXCLUDE
-    PATTERN "pkgconfig" EXCLUDE
-    PATTERN "data" EXCLUDE)
-
-  if(NOT EXISTS "${OBS_INCLUDE_DESTINATION}/obsconfig.h")
-    install(
-      FILES "${CMAKE_BINARY_DIR}/config/obsconfig.h"
-      DESTINATION "${OBS_INCLUDE_DESTINATION}"
-      COMPONENT obs_libraries
-      EXCLUDE_FROM_ALL)
-  endif()
-endfunction()
-
 # Helper function to define available graphics modules for targets
 function(define_graphic_modules target)
   foreach(_GRAPHICS_API metal d3d11 opengl d3d9)
@@ -385,6 +362,19 @@ macro(set_option option value)
       CACHE INTERNAL "")
 endmacro()
 
+function(obs_status status text)
+  set(_OBS_STATUS_DISABLED "OBS:  DISABLED   ")
+  set(_OBS_STATUS_ENABLED "OBS:  ENABLED    ")
+  set(_OBS_STATUS "OBS:  ")
+  if(status STREQUAL "DISABLED")
+    message(STATUS "${_OBS_STATUS_DISABLED}${text}")
+  elseif(status STREQUAL "ENABLED")
+    message(STATUS "${_OBS_STATUS_ENABLED}${text}")
+  else()
+    message(${status} "${_OBS_STATUS}${text}")
+  endif()
+endfunction()
+
 if(OS_WINDOWS)
   include(ObsHelpers_Windows)
 elseif(OS_MACOS)
@@ -445,20 +435,16 @@ function(_install_obs_datatarget target destination)
 
   install(
     TARGETS ${target}
-    LIBRARY
-      DESTINATION
-        ${OBS_OUTPUT_DIR}/$<CONFIG>/${OBS_DATA_DESTINATION}/${destination}
-      COMPONENT obs_${target}
-    RUNTIME
-      DESTINATION
-        ${OBS_OUTPUT_DIR}/$<CONFIG>/${OBS_DATA_DESTINATION}/${destination}
-      COMPONENT obs_${target}
-      EXCLUDE_FROM_ALL)
+    LIBRARY DESTINATION ${OBS_DATA_DESTINATION}/${destination}
+            COMPONENT obs_${target}
+    RUNTIME DESTINATION ${OBS_DATA_DESTINATION}/${destination}
+            COMPONENT obs_${target}
+            EXCLUDE_FROM_ALL)
 
   if(OS_WINDOWS)
     if(MSVC)
       add_target_resource(${target} "$<TARGET_PDB_FILE:${target}>"
-                          "${destination}")
+                          "${destination}" OPTIONAL)
     endif()
 
     if(DEFINED ENV{obsInstallerTempDir})
@@ -474,4 +460,14 @@ function(_install_obs_datatarget target destination)
           EXCLUDE_FROM_ALL)
     endif()
   endif()
+
+  add_custom_command(
+    TARGET ${target}
+    POST_BUILD
+    COMMAND
+      "${CMAKE_COMMAND}" --install .. --config $<CONFIG> --prefix
+      ${OBS_OUTPUT_DIR}/$<CONFIG> --component obs_${target} >
+      "$<IF:$<PLATFORM_ID:Windows>,nul,/dev/null>"
+    COMMENT "Installing ${target} to OBS rundir"
+    VERBATIM)
 endfunction()
