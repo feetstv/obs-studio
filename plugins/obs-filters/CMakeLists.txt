@@ -28,7 +28,8 @@ else()
   target_compile_definitions(obs-filters PRIVATE LIBSPEEXDSP_ENABLED)
 
   if(OS_WINDOWS)
-    target_link_options(obs-filters PRIVATE "LINKER:/LTCG")
+    target_link_options(obs-filters PRIVATE "LINKER:/LTCG"
+                        "LINKER:/IGNORE:4098" "LINKER:/IGNORE:4099")
   endif()
 endif()
 
@@ -156,6 +157,12 @@ target_include_directories(
   obs-filters PRIVATE $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/config>)
 
 target_link_libraries(obs-filters PRIVATE OBS::libobs)
+
+target_compile_options(
+  obs-filters
+  PRIVATE
+    $<$<OR:$<C_COMPILER_ID:Clang>,$<C_COMPILER_ID:AppleClang>,$<C_COMPILER_ID:GNU>>:-Wno-switch>
+)
 
 set_target_properties(obs-filters PROPERTIES FOLDER "plugins" PREFIX "")
 

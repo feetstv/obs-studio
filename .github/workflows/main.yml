@@ -19,13 +19,14 @@ env:
   CEF_BUILD_VERSION_LINUX: '4638'
   CEF_BUILD_VERSION_WIN: '4638'
   QT_VERSION_MAC: '5.15.2'
-  QT_HASH_MAC_X86_64: 'eb52d5cad6160a333db0781490f703822688f94cbf75bf753116761653b657ca'
-  QT_HASH_MAC_ARM64: '8e0f614310e8686b10ff780050caac94ae4bc3ee9e3534e3ccf2300d59088ad0'
+  QT_HASH_MAC_X86_64: '13787c6c21b931373833652d5016dd80634110c2b735eb0bf03b4c77b86a4489'
+  QT_HASH_MAC_ARM64: 'a94450719eaf738c8a29f1375757f832e9bfb02c02e5333ed9cde6fa85860a27'
+  QT_HASH_MAC_UNIVERSAL: 'f8885ba0952740dc3f0d2bf966a05cc181e1dcd17a43bcf14f9a480fd95d65d1'
   QT_VERSION_WIN: '5.15.2'
-  DEPS_VERSION_MAC: '2022-05-23'
-  DEPS_HASH_MAC_X86_64: 'e0372850e2c1014301d8a121945ff4778b543f3a768ccfdeda02c3427572cbc3'
-  DEPS_HASH_MAC_ARM64: '3e9c5d58f558736a62397cd2fc084e0be9cafbc00ef708d31b487f4b03c34ac3'
-  DEPS_VERSION_WIN: '2022-05-23'
+  DEPS_VERSION_MAC: '2022-07-18'
+  DEPS_HASH_MAC_X86_64: 'd2fc48e4cbcef840d59d6122f0e78f69602ff8f6264ea9a6fdfcfce88607e98d'
+  DEPS_HASH_MAC_ARM64: '1386418e41a60d83dd7de8742ede3d13ebb27b40ded6e7e41c00fd85a677a09d'
+  DEPS_VERSION_WIN: '2022-07-18'
   VLC_VERSION_MAC: '3.0.8'
   VLC_HASH_MAC: 'e0149ef4a20a19b9ecd87309c2d27787ee3f47dfd47c6639644bc1f6fd95bdf6'
   VLC_VERSION_WIN: '3.0.0-git'
@@ -200,7 +201,7 @@ jobs:
     runs-on: ${{ matrix.ubuntu }}
     strategy:
       matrix:
-        ubuntu: ['ubuntu-20.04', 'ubuntu-18.04']
+        ubuntu: ['ubuntu-20.04', 'ubuntu-22.04']
     if: always()
     needs: [clang_check]
     defaults:
@@ -389,6 +390,7 @@ jobs:
       - name: 'Setup build environment'
         if: ${{ success() && (github.event_name != 'pull_request' || env.SEEKING_TESTERS == '1') }}
         run: |
+          git config --global --add safe.directory $GITHUB_WORKSPACE
           echo "OBS_GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)" >> $GITHUB_ENV
           echo "OBS_GIT_HASH=$(git rev-parse --short=9 HEAD)" >> $GITHUB_ENV
           echo "OBS_GIT_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV

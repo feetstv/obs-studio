@@ -67,7 +67,7 @@ static void update_sdi_transport_and_sdi_transport_4k(obs_properties_t *props,
 	obs_property_t *sdi_trx_list =
 		obs_properties_get(props, kUIPropSDITransport.id);
 	obs_property_list_clear(sdi_trx_list);
-	populate_sdi_transport_list(sdi_trx_list, io, device_id);
+	populate_sdi_transport_list(sdi_trx_list, device_id);
 	obs_property_t *sdi_4k_trx_list =
 		obs_properties_get(props, kUIPropSDITransport4K.id);
 	obs_property_list_clear(sdi_4k_trx_list);
@@ -289,8 +289,8 @@ void AJAOutput::QueueAudioFrames(struct audio_data *frames, size_t size)
 	copy_audio_data(frames, &af.frames, size);
 
 	mAudioQueue->push_back(af);
-	mAudioQueueSamples +=
-		size / (kDefaultAudioChannels * kDefaultAudioSampleSize);
+	mAudioQueueSamples += size / ((uint64_t)kDefaultAudioChannels *
+				      kDefaultAudioSampleSize);
 }
 
 void AJAOutput::ClearVideoQueue()
@@ -399,8 +399,8 @@ void AJAOutput::DMAAudioFromQueue(NTV2AudioSystem audioSys)
 				af.offset += sizeLeft;
 				sizeLeft = 0;
 				adjustSamples -= samples;
-				mAudioAdjust =
-					adjustSamples * 1000000 / mAudioRate;
+				mAudioAdjust = (int64_t)adjustSamples *
+					       1000000 / mAudioRate;
 				blog(LOG_DEBUG,
 				     "AJAOutput::DMAAudioFromQueue: Drop %d audio samples",
 				     samples);
@@ -537,8 +537,8 @@ void AJAOutput::dma_audio_samples(NTV2AudioSystem audioSys, uint32_t *data,
 {
 	bool result = false;
 
-	mAudioWriteSamples +=
-		size / (kDefaultAudioChannels * kDefaultAudioSampleSize);
+	mAudioWriteSamples += size / ((uint64_t)kDefaultAudioChannels *
+				      kDefaultAudioSampleSize);
 
 	if ((mAudioWriteCursor + size) > mAudioWrapAddress) {
 		const uint32_t remainingBuffer =
@@ -868,8 +868,6 @@ bool aja_output_device_changed(void *data, obs_properties_t *props,
 bool aja_output_dest_changed(obs_properties_t *props, obs_property_t *list,
 			     obs_data_t *settings)
 {
-	UNUSED_PARAMETER(props);
-
 	blog(LOG_DEBUG, "AJA Output Dest Changed");
 
 	const char *cardID = obs_data_get_string(settings, kUIPropDevice.id);
@@ -886,10 +884,10 @@ bool aja_output_dest_changed(obs_properties_t *props, obs_property_t *list,
 	}
 
 	bool itemFound = false;
-	int dest = obs_data_get_int(settings, kUIPropOutput.id);
-	size_t itemCount = obs_property_list_item_count(list);
+	const long long dest = obs_data_get_int(settings, kUIPropOutput.id);
+	const size_t itemCount = obs_property_list_item_count(list);
 	for (size_t i = 0; i < itemCount; i++) {
-		int itemDest = obs_property_list_item_int(list, i);
+		const long long itemDest = obs_property_list_item_int(list, i);
 		if (dest == itemDest) {
 			itemFound = true;
 			break;
@@ -1289,7 +1287,7 @@ static void aja_output_defaults(obs_data_t *settings)
 		static_cast<long long>(kDefaultAJASDITransport4K));
 }
 
-struct obs_output_info create_aja_output_info()
+void register_aja_output_info()
 {
 	struct obs_output_info aja_output_info = {};
 
@@ -1305,5 +1303,5 @@ struct obs_output_info create_aja_output_info()
 	aja_output_info.update = aja_output_update;
 	aja_output_info.get_defaults = aja_output_defaults;
 	aja_output_info.get_properties = aja_output_get_properties;
-	return aja_output_info;
+	obs_register_output(&aja_output_info);
 }

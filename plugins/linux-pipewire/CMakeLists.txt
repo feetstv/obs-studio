@@ -6,7 +6,7 @@ if(NOT ENABLE_PIPEWIRE)
   return()
 endif()
 
-find_package(PipeWire REQUIRED)
+find_package(PipeWire 0.3.32 REQUIRED)
 find_package(Gio QUIET)
 find_package(Libdrm QUIET) # we require libdrm/drm_fourcc.h to build
 
@@ -35,10 +35,10 @@ target_sources(
   PRIVATE linux-pipewire.c
           pipewire.c
           pipewire.h
-          pipewire-capture.c
-          pipewire-capture.h
           portal.c
-          portal.h)
+          portal.h
+          screencast-portal.c
+          screencast-portal.h)
 
 target_link_libraries(
   linux-pipewire PRIVATE OBS::libobs OBS::obsglad PipeWire::PipeWire GIO::GIO

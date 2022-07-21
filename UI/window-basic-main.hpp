@@ -70,6 +70,7 @@ class OBSBasicStats;
 #define SIMPLE_ENCODER_NVENC_HEVC "nvenc_hevc"
 #endif
 #define SIMPLE_ENCODER_AMD "amd"
+#define SIMPLE_ENCODER_APPLE_H264 "apple_h264"
 
 #define PREVIEW_EDGE_SIZE 10
 
@@ -438,17 +439,13 @@ private:
 	obs_source_t *FindTransition(const char *name);
 	OBSSource GetCurrentTransition();
 	obs_data_array_t *SaveTransitions();
-	void LoadTransitions(obs_data_array_t *transitions,
-			     obs_load_source_cb cb, void *private_data);
+	void LoadTransitions(obs_data_array_t *transitions);
 
 	obs_source_t *fadeTransition;
 	obs_source_t *cutTransition;
 
 	void CreateProgramDisplay();
 	void CreateProgramOptions();
-	int TransitionCount();
-	int AddTransitionBeforeSeparator(const QString &name,
-					 obs_source_t *source);
 	void AddQuickTransitionId(int id);
 	void AddQuickTransition();
 	void AddQuickTransitionHotkey(QuickTransition *qt);
@@ -704,7 +701,7 @@ private slots:
 
 	void ProcessHotkey(obs_hotkey_id id, bool pressed);
 
-	void AddTransition(QString id);
+	void AddTransition();
 	void RenameTransition();
 	void TransitionClicked();
 	void TransitionStopped();
@@ -820,7 +817,6 @@ private:
 	OBSSource prevFTBSource = nullptr;
 
 public:
-	undo_stack undo_s;
 	OBSSource GetProgramSource();
 	OBSScene GetCurrentScene();
 
@@ -1066,7 +1062,8 @@ private slots:
 	void on_toggleSourceIcons_toggled(bool visible);
 
 	void on_transitions_currentIndexChanged(int index);
-	void RemoveTransitionClicked();
+	void on_transitionAdd_clicked();
+	void on_transitionRemove_clicked();
 	void on_transitionProps_clicked();
 	void on_transitionDuration_valueChanged(int value);
 	void on_tbar_position_valueChanged(int value);
@@ -1085,7 +1082,8 @@ private slots:
 	void on_stats_triggered();
 
 	void on_resetUI_triggered();
-	void on_lockUI_toggled(bool lock);
+	void on_resetDocks_triggered(bool force = false);
+	void on_lockDocks_toggled(bool lock);
 
 	void PauseToggled();
 
@@ -1137,8 +1135,6 @@ private slots:
 
 	void StackedMixerAreaContextMenuRequested();
 
-	void ResizeOutputSizeOfSource();
-
 public slots:
 	void on_actionResetTransform_triggered();
 
@@ -1152,7 +1148,14 @@ public slots:
 	void UpdateContextBarDeferred(bool force = false);
 	void UpdateContextBarVisibility();
 
+private:
+	std::unique_ptr<Ui::OBSBasic> ui;
+
 public:
+	/* `undo_s` needs to be declared after `ui` to prevent an uninitialized
+	 * warning for `ui` while initializing `undo_s`. */
+	undo_stack undo_s;
+
 	explicit OBSBasic(QWidget *parent = 0);
 	virtual ~OBSBasic();
 
@@ -1164,9 +1167,6 @@ public:
 				   const char *file) const override;
 
 	static void InitBrowserPanelSafeBlock();
-
-private:
-	std::unique_ptr<Ui::OBSBasic> ui;
 };
 
 class SceneRenameDelegate : public QStyledItemDelegate {

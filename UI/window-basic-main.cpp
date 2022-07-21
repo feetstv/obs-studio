@@ -1035,22 +1035,10 @@ void OBSBasic::LoadData(obs_data_t *data, const char *file)
 		obs_data_array_push_back_array(sources, groups);
 	}
 
-	obs_missing_files_t *files = obs_missing_files_create();
-
-	auto cb = [](void *private_data, obs_source_t *source) {
-		obs_missing_files_t *f = (obs_missing_files_t *)private_data;
-		obs_missing_files_t *sf = obs_source_get_missing_files(source);
-
-		obs_missing_files_append(f, sf);
-		obs_missing_files_destroy(sf);
-
-		UNUSED_PARAMETER(source);
-	};
-
-	obs_load_sources(sources, cb, files);
+	obs_load_sources(sources, nullptr, nullptr);
 
 	if (transitions)
-		LoadTransitions(transitions, cb, files);
+		LoadTransitions(transitions);
 	if (sceneOrder)
 		LoadSceneListOrder(sceneOrder);
 
@@ -1171,20 +1159,8 @@ retryScene:
 
 	LogScenes();
 
-	if (obs_missing_files_count(files) > 0 &&
-	    !App()->IsMissingFilesCheckDisabled()) {
-		/* the window hasn't fully initialized by this point on macOS,
-		 * so put this at the end of the current task queue. Fixes a
-		 * bug where the window be behind OBS on startup */
-		QTimer::singleShot(0, [this, files] {
-			missDialog = new OBSMissingFiles(files, this);
-			missDialog->setAttribute(Qt::WA_DeleteOnClose, true);
-			missDialog->show();
-			missDialog->raise();
-		});
-	} else {
-		obs_missing_files_destroy(files);
-	}
+	if (!App()->IsMissingFilesCheckDisabled())
+		on_actionShowMissingFiles_triggered();
 
 	disableSaving--;
 
@@ -1457,8 +1433,8 @@ bool OBSBasic::InitBasicConfigDefaults()
 	config_set_default_bool(basicConfig, "Output", "DelayPreserve", true);
 
 	config_set_default_bool(basicConfig, "Output", "Reconnect", true);
-	config_set_default_uint(basicConfig, "Output", "RetryDelay", 10);
-	config_set_default_uint(basicConfig, "Output", "MaxRetries", 20);
+	config_set_default_uint(basicConfig, "Output", "RetryDelay", 2);
+	config_set_default_uint(basicConfig, "Output", "MaxRetries", 25);
 
 	config_set_default_string(basicConfig, "Output", "BindIP", "default");
 	config_set_default_bool(basicConfig, "Output", "NewSocketLoopEnable",
@@ -1980,12 +1956,12 @@ void OBSBasic::OBSInit()
 		App()->GlobalConfig(), "BasicWindow", "DockState");
 
 	if (!dockStateStr) {
-		on_resetUI_triggered();
+		on_resetDocks_triggered(true);
 	} else {
 		QByteArray dockState =
 			QByteArray::fromBase64(QByteArray(dockStateStr));
 		if (!restoreState(dockState))
-			on_resetUI_triggered();
+			on_resetDocks_triggered(true);
 	}
 
 	bool pre23Defaults = config_get_bool(App()->GlobalConfig(), "General",
@@ -2004,10 +1980,10 @@ void OBSBasic::OBSInit()
 
 	bool docksLocked = config_get_bool(App()->GlobalConfig(), "BasicWindow",
 					   "DocksLocked");
-	on_lockUI_toggled(docksLocked);
-	ui->lockUI->blockSignals(true);
-	ui->lockUI->setChecked(docksLocked);
-	ui->lockUI->blockSignals(false);
+	on_lockDocks_toggled(docksLocked);
+	ui->lockDocks->blockSignals(true);
+	ui->lockDocks->setChecked(docksLocked);
+	ui->lockDocks->blockSignals(false);
 
 	SystemTray(true);
 
@@ -2690,7 +2666,7 @@ OBSBasic::~OBSBasic()
 	config_set_bool(App()->GlobalConfig(), "BasicWindow",
 			"PreviewProgramMode", IsPreviewProgramMode());
 	config_set_bool(App()->GlobalConfig(), "BasicWindow", "DocksLocked",
-			ui->lockUI->isChecked());
+			ui->lockDocks->isChecked());
 	config_save_safe(App()->GlobalConfig(), "tmp", nullptr);
 
 #ifdef _WIN32
@@ -3632,8 +3608,7 @@ bool OBSBasic::QueryRemoveSource(obs_source_t *source)
 
 	const char *name = obs_source_get_name(source);
 
-	QString text = QTStr("ConfirmRemove.Text");
-	text.replace("$1", QT_UTF8(name));
+	QString text = QTStr("ConfirmRemove.Text").arg(QT_UTF8(name));
 
 	QMessageBox remove_source(this);
 	remove_source.setText(text);
@@ -4434,7 +4409,7 @@ bool OBSBasic::ResetAudio()
 {
 	ProfileScope("OBSBasic::ResetAudio");
 
-	struct obs_audio_info ai;
+	struct obs_audio_info2 ai = {};
 	ai.samples_per_sec =
 		config_get_uint(basicConfig, "Audio", "SampleRate");
 
@@ -4456,7 +4431,14 @@ bool OBSBasic::ResetAudio()
 	else
 		ai.speakers = SPEAKERS_STEREO;
 
-	return obs_reset_audio(&ai);
+	bool lowLatencyAudioBuffering = config_get_bool(
+		GetGlobalConfig(), "Audio", "LowLatencyAudioBuffering");
+	if (lowLatencyAudioBuffering) {
+		ai.max_buffering_ms = 20;
+		ai.fixed_buffering = true;
+	}
+
+	return obs_reset_audio2(&ai);
 }
 
 extern char *get_new_source_name(const char *name, const char *format);
@@ -4676,6 +4658,12 @@ void OBSBasic::closeEvent(QCloseEvent *event)
 		}
 	}
 
+	if (remux && !remux->close()) {
+		event->ignore();
+		restart = false;
+		return;
+	}
+
 	QWidget::closeEvent(event);
 	if (!event->isAccepted())
 		return;
@@ -4890,15 +4878,24 @@ void OBSBasic::on_actionShowMissingFiles_triggered()
 	obs_enum_all_sources(cb_transitions, files);
 
 	if (obs_missing_files_count(files) > 0) {
-		missDialog = new OBSMissingFiles(files, this);
-		missDialog->setAttribute(Qt::WA_DeleteOnClose, true);
-		missDialog->show();
-		missDialog->raise();
+		/* When loading the missing files dialog on launch, the
+		* window hasn't fully initialized by this point on macOS,
+		* so put this at the end of the current task queue. Fixes
+		* a bug where the window is behind OBS on startup. */
+		QTimer::singleShot(0, [this, files] {
+			missDialog = new OBSMissingFiles(files, this);
+			missDialog->setAttribute(Qt::WA_DeleteOnClose, true);
+			missDialog->show();
+			missDialog->raise();
+		});
 	} else {
 		obs_missing_files_destroy(files);
-		OBSMessageBox::information(
-			this, QTStr("MissingFiles.NoMissing.Title"),
-			QTStr("MissingFiles.NoMissing.Text"));
+
+		/* Only raise dialog if triggered manually */
+		if (!disableSaving)
+			OBSMessageBox::information(
+				this, QTStr("MissingFiles.NoMissing.Title"),
+				QTStr("MissingFiles.NoMissing.Text"));
 	}
 }
 
@@ -5566,7 +5563,6 @@ void OBSBasic::CreateSourcePopupMenu(int idx, bool preview)
 		bool isAsyncVideo = (flags & OBS_SOURCE_ASYNC_VIDEO) ==
 				    OBS_SOURCE_ASYNC_VIDEO;
 		bool hasAudio = (flags & OBS_SOURCE_AUDIO) == OBS_SOURCE_AUDIO;
-		QAction *action;
 
 		colorMenu = new QMenu(QTStr("ChangeBG"));
 		colorWidgetAction = new QWidgetAction(colorMenu);
@@ -5578,18 +5574,9 @@ void OBSBasic::CreateSourcePopupMenu(int idx, bool preview)
 		popup.addAction(QTStr("Remove"), this,
 				SLOT(on_actionRemoveSource_triggered()));
 		popup.addSeparator();
+
 		popup.addMenu(ui->orderMenu);
-
 		popup.addMenu(ui->transformMenu);
-
-		sourceProjector = new QMenu(QTStr("SourceProjector"));
-		AddProjectorMenuMonitors(sourceProjector, this,
-					 SLOT(OpenSourceProjector()));
-
-		QAction *sourceWindow = popup.addAction(
-			QTStr("SourceWindow"), this, SLOT(OpenSourceWindow()));
-
-		popup.addAction(sourceWindow);
 
 		popup.addSeparator();
 
@@ -5599,57 +5586,44 @@ void OBSBasic::CreateSourcePopupMenu(int idx, bool preview)
 						SLOT(ToggleHideMixer()));
 			actionHideMixer->setCheckable(true);
 			actionHideMixer->setChecked(SourceMixerHidden(source));
-		}
-
-		if (isAsyncVideo) {
-			deinterlaceMenu = new QMenu(QTStr("Deinterlacing"));
-			popup.addMenu(
-				AddDeinterlacingMenu(deinterlaceMenu, source));
 			popup.addSeparator();
 		}
-
-		QAction *resizeOutput =
-			popup.addAction(QTStr("ResizeOutputSizeOfSource"), this,
-					SLOT(ResizeOutputSizeOfSource()));
-
-		int width = obs_source_get_width(source);
-		int height = obs_source_get_height(source);
-
-		resizeOutput->setEnabled(!obs_video_active());
-
-		if (width < 8 || height < 8)
-			resizeOutput->setEnabled(false);
 
 		scaleFilteringMenu = new QMenu(QTStr("ScaleFiltering"));
 		popup.addMenu(
 			AddScaleFilteringMenu(scaleFilteringMenu, sceneItem));
-		popup.addSeparator();
-
+		blendingModeMenu = new QMenu(QTStr("BlendingMode"));
+		popup.addMenu(AddBlendingModeMenu(blendingModeMenu, sceneItem));
 		blendingMethodMenu = new QMenu(QTStr("BlendingMethod"));
 		popup.addMenu(
 			AddBlendingMethodMenu(blendingMethodMenu, sceneItem));
-		blendingModeMenu = new QMenu(QTStr("BlendingMode"));
-		popup.addMenu(AddBlendingModeMenu(blendingModeMenu, sceneItem));
-		popup.addSeparator();
-
-		popup.addMenu(sourceProjector);
-		popup.addAction(sourceWindow);
-		popup.addAction(QTStr("Screenshot.Source"), this,
-				SLOT(ScreenshotSelectedSource()));
+		if (isAsyncVideo) {
+			deinterlaceMenu = new QMenu(QTStr("Deinterlacing"));
+			popup.addMenu(
+				AddDeinterlacingMenu(deinterlaceMenu, source));
+		}
 		popup.addSeparator();
 
 		popup.addMenu(CreateVisibilityTransitionMenu(true));
 		popup.addMenu(CreateVisibilityTransitionMenu(false));
 		popup.addSeparator();
 
-		action = popup.addAction(QTStr("Interact"), this,
-					 SLOT(on_actionInteract_triggered()));
+		sourceProjector = new QMenu(QTStr("SourceProjector"));
+		AddProjectorMenuMonitors(sourceProjector, this,
+					 SLOT(OpenSourceProjector()));
+		popup.addMenu(sourceProjector);
+		popup.addAction(QTStr("SourceWindow"), this,
+				SLOT(OpenSourceWindow()));
+		popup.addAction(QTStr("Screenshot.Source"), this,
+				SLOT(ScreenshotSelectedSource()));
+		popup.addSeparator();
 
-		action->setEnabled(obs_source_get_output_flags(source) &
-				   OBS_SOURCE_INTERACTION);
+		if (flags & OBS_SOURCE_INTERACTION)
+			popup.addAction(QTStr("Interact"), this,
+					SLOT(on_actionInteract_triggered()));
 
 		popup.addAction(QTStr("Filters"), this, SLOT(OpenFilters()));
-		action = popup.addAction(
+		QAction *action = popup.addAction(
 			QTStr("Properties"), this,
 			SLOT(on_actionSourceProperties_triggered()));
 		action->setEnabled(obs_source_configurable(source));
@@ -7304,6 +7278,12 @@ void OBSBasic::StartReplayBuffer()
 		return;
 	}
 
+	if (!OutputPathValid()) {
+		OutputPathInvalidMessage();
+		replayBufferButton->setChecked(false);
+		return;
+	}
+
 	if (LowDiskSpace()) {
 		DiskSpaceMessage();
 		replayBufferButton->setChecked(false);
@@ -8799,7 +8779,7 @@ int OBSBasic::GetProfilePath(char *path, size_t size, const char *file) const
 	return snprintf(path, size, "%s/%s/%s", profiles_path, profile, file);
 }
 
-void OBSBasic::on_resetUI_triggered()
+void OBSBasic::on_resetDocks_triggered(bool force)
 {
 	/* prune deleted extra docks */
 	for (int i = extraDocks.size() - 1; i >= 0; i--) {
@@ -8808,7 +8788,7 @@ void OBSBasic::on_resetUI_triggered()
 		}
 	}
 
-	if (extraDocks.size()) {
+	if (extraDocks.size() && !force) {
 		QMessageBox::StandardButton button = QMessageBox::question(
 			this, QTStr("ResetUIWarning.Title"),
 			QTStr("ResetUIWarning.Text"));
@@ -8861,7 +8841,7 @@ void OBSBasic::on_resetUI_triggered()
 	activateWindow();
 }
 
-void OBSBasic::on_lockUI_toggled(bool lock)
+void OBSBasic::on_lockDocks_toggled(bool lock)
 {
 	QDockWidget::DockWidgetFeatures features =
 		lock ? QDockWidget::NoDockWidgetFeatures
@@ -8886,6 +8866,16 @@ void OBSBasic::on_lockUI_toggled(bool lock)
 			extraDocks[i]->setFeatures(features);
 		}
 	}
+}
+
+void OBSBasic::on_resetUI_triggered()
+{
+	on_resetDocks_triggered();
+
+	ui->toggleListboxToolbars->setChecked(true);
+	ui->toggleContextBar->setChecked(true);
+	ui->toggleSourceIcons->setChecked(true);
+	ui->toggleStatusBar->setChecked(true);
 }
 
 void OBSBasic::on_toggleListboxToolbars_toggled(bool visible)
@@ -9620,40 +9610,6 @@ void OBSBasic::on_actionShowAbout_triggered()
 	about->setAttribute(Qt::WA_DeleteOnClose, true);
 }
 
-void OBSBasic::ResizeOutputSizeOfSource()
-{
-	if (obs_video_active())
-		return;
-
-	QMessageBox resize_output(this);
-	resize_output.setText(QTStr("ResizeOutputSizeOfSource.Text") + "\n\n" +
-			      QTStr("ResizeOutputSizeOfSource.Continue"));
-	QAbstractButton *Yes =
-		resize_output.addButton(QTStr("Yes"), QMessageBox::YesRole);
-	resize_output.addButton(QTStr("No"), QMessageBox::NoRole);
-	resize_output.setIcon(QMessageBox::Warning);
-	resize_output.setWindowTitle(QTStr("ResizeOutputSizeOfSource"));
-	resize_output.exec();
-
-	if (resize_output.clickedButton() != Yes)
-		return;
-
-	OBSSource source = obs_sceneitem_get_source(GetCurrentSceneItem());
-
-	int width = obs_source_get_width(source);
-	int height = obs_source_get_height(source);
-
-	config_set_uint(basicConfig, "Video", "BaseCX", width);
-	config_set_uint(basicConfig, "Video", "BaseCY", height);
-	config_set_uint(basicConfig, "Video", "OutputCX", width);
-	config_set_uint(basicConfig, "Video", "OutputCY", height);
-
-	ResetVideo();
-	ResetOutputs();
-	config_save_safe(basicConfig, "tmp", nullptr);
-	on_actionFitToScreen_triggered();
-}
-
 QAction *OBSBasic::AddDockWidget(QDockWidget *dock)
 {
 	QAction *action = ui->menuDocks->addAction(dock->windowTitle());
@@ -9662,7 +9618,7 @@ QAction *OBSBasic::AddDockWidget(QDockWidget *dock)
 	assignDockToggle(dock, action);
 	extraDocks.push_back(dock);
 
-	bool lock = ui->lockUI->isChecked();
+	bool lock = ui->lockDocks->isChecked();
 	QDockWidget::DockWidgetFeatures features =
 		lock ? QDockWidget::NoDockWidgetFeatures
 		     : (QDockWidget::DockWidgetClosable |

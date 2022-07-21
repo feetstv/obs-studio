@@ -151,8 +151,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>806</width>
-              <height>1181</height>
+              <width>803</width>
+              <height>1226</height>
              </rect>
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_19">
@@ -1379,7 +1379,7 @@
               <x>0</x>
               <y>0</y>
               <width>820</width>
-              <height>679</height>
+              <height>676</height>
              </rect>
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_21">
@@ -1525,19 +1525,6 @@
                      </widget>
                     </item>
                     <item row="1" column="0">
-                     <widget class="QLabel" name="simpleOutStrEncoderLabel">
-                      <property name="text">
-                       <string>Basic.Settings.Output.Encoder</string>
-                      </property>
-                      <property name="buddy">
-                       <cstring>simpleOutRecEncoder</cstring>
-                      </property>
-                     </widget>
-                    </item>
-                    <item row="1" column="1">
-                     <widget class="QComboBox" name="simpleOutStrEncoder"/>
-                    </item>
-                    <item row="2" column="0">
                      <widget class="QLabel" name="label_20">
                       <property name="text">
                        <string>Basic.Settings.Output.AudioBitrate</string>
@@ -1547,7 +1534,7 @@
                       </property>
                      </widget>
                     </item>
-                    <item row="2" column="1">
+                    <item row="1" column="1">
                      <widget class="QComboBox" name="simpleOutputABitrate">
                       <property name="currentIndex">
                        <number>8</number>
@@ -1609,18 +1596,21 @@
                       </item>
                      </widget>
                     </item>
-                    <item row="3" column="1">
-                     <widget class="QCheckBox" name="simpleOutAdvanced">
+                    <item row="2" column="0">
+                     <widget class="QLabel" name="simpleOutStrEncoderLabel">
                       <property name="text">
-                       <string>Basic.Settings.Output.Advanced</string>
+                       <string>Basic.Settings.Output.Encoder</string>
                       </property>
-                      <property name="checked">
-                       <bool>true</bool>
+                      <property name="buddy">
+                       <cstring>simpleOutRecEncoder</cstring>
                       </property>
                      </widget>
                     </item>
-                    <item row="4" column="0">
-                     <widget class="QLabel" name="label_24">
+                    <item row="2" column="1">
+                     <widget class="QComboBox" name="simpleOutStrEncoder"/>
+                    </item>
+                    <item row="3" column="0">
+                     <widget class="QLabel" name="simpleOutPresetLabel">
                       <property name="enabled">
                        <bool>true</bool>
                       </property>
@@ -1632,8 +1622,18 @@
                       </property>
                      </widget>
                     </item>
-                    <item row="4" column="1">
+                    <item row="3" column="1">
                      <widget class="QComboBox" name="simpleOutPreset"/>
+                    </item>
+                    <item row="4" column="1">
+                     <widget class="QCheckBox" name="simpleOutAdvanced">
+                      <property name="text">
+                       <string>Basic.Settings.Output.Advanced</string>
+                      </property>
+                      <property name="checked">
+                       <bool>true</bool>
+                      </property>
+                     </widget>
                     </item>
                     <item row="5" column="0">
                      <widget class="QLabel" name="label_23">
@@ -3972,7 +3972,7 @@
               <x>0</x>
               <y>0</y>
               <width>820</width>
-              <height>641</height>
+              <height>632</height>
              </rect>
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_50">
@@ -4369,6 +4369,13 @@
                     <widget class="QCheckBox" name="disableAudioDucking">
                      <property name="text">
                       <string>Basic.Settings.Advanced.Audio.DisableAudioDucking</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="2" column="1">
+                    <widget class="QCheckBox" name="lowLatencyBuffering">
+                     <property name="text">
+                      <string>Basic.Settings.Audio.LowLatencyBufferingMode</string>
                      </property>
                     </widget>
                    </item>
@@ -4832,10 +4839,10 @@
               <string>Clear</string>
              </property>
              <property name="flat">
-              <bool>true</bool>
+              <bool>false</bool>
              </property>
              <property name="themeID" stdset="0">
-              <string>trashIcon</string>
+              <string>revertIcon</string>
              </property>
              <property name="fixedSize" stdset="0">
               <size>
@@ -4904,8 +4911,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>609</width>
-              <height>870</height>
+              <width>713</width>
+              <height>923</height>
              </rect>
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_23">
@@ -5050,38 +5057,7 @@
                     </widget>
                    </item>
                    <item row="2" column="1">
-                    <widget class="QComboBox" name="colorFormat">
-                     <item>
-                      <property name="text">
-                       <string notr="true">NV12</string>
-                      </property>
-                     </item>
-                     <item>
-                      <property name="text">
-                       <string notr="true">I420</string>
-                      </property>
-                     </item>
-                     <item>
-                      <property name="text">
-                       <string notr="true">I444</string>
-                      </property>
-                     </item>
-                     <item>
-                      <property name="text">
-                       <string notr="true">P010</string>
-                      </property>
-                     </item>
-                     <item>
-                      <property name="text">
-                       <string notr="true">I010</string>
-                      </property>
-                     </item>
-                     <item>
-                      <property name="text">
-                       <string notr="true">RGB</string>
-                      </property>
-                     </item>
-                    </widget>
+                    <widget class="QComboBox" name="colorFormat"/>
                    </item>
                    <item row="3" column="0">
                     <widget class="QLabel" name="label_33">
@@ -5157,6 +5133,9 @@
                      </property>
                      <item>
                       <widget class="QSpinBox" name="sdrWhiteLevel">
+                       <property name="suffix">
+                        <string notr="true"> nits</string>
+                       </property>
                        <property name="minimum">
                         <number>80</number>
                        </property>
@@ -5183,6 +5162,9 @@
                      </item>
                      <item>
                       <widget class="QSpinBox" name="hdrNominalPeakLevel">
+                       <property name="suffix">
+                        <string notr="true"> nits</string>
+                       </property>
                        <property name="minimum">
                         <number>400</number>
                        </property>
@@ -5848,10 +5830,10 @@
   <tabstop>scrollArea_3</tabstop>
   <tabstop>outputMode</tabstop>
   <tabstop>simpleOutputVBitrate</tabstop>
-  <tabstop>simpleOutStrEncoder</tabstop>
   <tabstop>simpleOutputABitrate</tabstop>
-  <tabstop>simpleOutAdvanced</tabstop>
+  <tabstop>simpleOutStrEncoder</tabstop>
   <tabstop>simpleOutPreset</tabstop>
+  <tabstop>simpleOutAdvanced</tabstop>
   <tabstop>simpleOutCustom</tabstop>
   <tabstop>simpleOutputPath</tabstop>
   <tabstop>simpleOutputBrowse</tabstop>
@@ -5950,7 +5932,7 @@
   <tabstop>peakMeterType</tabstop>
   <tabstop>monitoringDevice</tabstop>
   <tabstop>disableAudioDucking</tabstop>
-  <tabstop>baseResolution</tabstop>
+  <tabstop>lowLatencyBuffering</tabstop>
   <tabstop>outputResolution</tabstop>
   <tabstop>downscaleFilter</tabstop>
   <tabstop>fpsType</tabstop>
@@ -5985,6 +5967,18 @@
   <tabstop>enableLowLatencyMode</tabstop>
   <tabstop>browserHWAccel</tabstop>
   <tabstop>hotkeyFocusType</tabstop>
+  <tabstop>hideOBSFromCapture</tabstop>
+  <tabstop>closeProjectors</tabstop>
+  <tabstop>moreInfoButton</tabstop>
+  <tabstop>ignoreRecommended</tabstop>
+  <tabstop>useStreamKeyAdv</tabstop>
+  <tabstop>baseResolution</tabstop>
+  <tabstop>hotkeyFilterSearch</tabstop>
+  <tabstop>hotkeyFilterInput</tabstop>
+  <tabstop>hotkeyFilterReset</tabstop>
+  <tabstop>hotkeyScrollArea</tabstop>
+  <tabstop>sdrWhiteLevel</tabstop>
+  <tabstop>hdrNominalPeakLevel</tabstop>
  </tabstops>
  <resources>
   <include location="obs.qrc"/>
@@ -6034,38 +6028,6 @@
     </hint>
     <hint type="destinationlabel">
      <x>401</x>
-     <y>64</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>simpleOutAdvanced</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>simpleOutPreset</receiver>
-   <slot>setVisible(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>251</x>
-     <y>64</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>251</x>
-     <y>64</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>simpleOutAdvanced</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>label_24</receiver>
-   <slot>setVisible(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>251</x>
-     <y>64</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>251</x>
      <y>64</y>
     </hint>
    </hints>

@@ -3,6 +3,7 @@
 #import <CoreMedia/CoreMedia.h>
 #import <CoreVideo/CoreVideo.h>
 #import <CoreMediaIO/CMIOHardware.h>
+#include <AvailabilityMacros.h>
 
 #include <obs-module.h>
 #include <obs.hpp>
@@ -603,7 +604,7 @@ static inline bool update_audio(obs_source_audio *audio,
 {
 	size_t requiredSize;
 	OSStatus status = CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
-		sample_buffer, &requiredSize, nullptr, NULL, nullptr, nullptr,
+		sample_buffer, &requiredSize, nullptr, 0, nullptr, nullptr,
 		kCMSampleBufferFlag_AudioBufferList_Assure16ByteAlignment,
 		nullptr);
 
@@ -1415,19 +1416,24 @@ static NSString *preset_names(NSString *preset)
 	return [NSString stringWithFormat:@"Unknown (%@)", preset];
 }
 
-inline static void av_capture_defaults(obs_data_t *settings, bool enable_audio)
+inline static void av_capture_defaults(obs_data_t *settings,
+				       bool enable_audio_and_high_preset)
 {
 	obs_data_set_default_string(settings, "uid", "");
 	obs_data_set_default_bool(settings, "use_preset", true);
 
-	obs_data_set_default_string(settings, "preset",
-				    AVCaptureSessionPreset1280x720.UTF8String);
+	obs_data_set_default_string(
+		settings, "preset",
+		enable_audio_and_high_preset
+			? AVCaptureSessionPresetHigh.UTF8String
+			: AVCaptureSessionPreset1280x720.UTF8String);
 
 	obs_data_set_default_int(settings, "input_format", INPUT_FORMAT_AUTO);
 	obs_data_set_default_int(settings, "color_space", COLOR_SPACE_AUTO);
 	obs_data_set_default_int(settings, "video_range", VIDEO_RANGE_AUTO);
 
-	obs_data_set_default_bool(settings, "enable_audio", enable_audio);
+	obs_data_set_default_bool(settings, "enable_audio",
+				  enable_audio_and_high_preset);
 }
 
 static void av_capture_defaults_v1(obs_data_t *settings)
@@ -1935,7 +1941,7 @@ static bool update_int_list_property(obs_property_t *p, const int *val,
 	DStr buf, label;
 	dstr_printf(buf, "%d", *val);
 	dstr_init_copy(label, obs_module_text(localization_name));
-	dstr_replace(label, "$1", buf->array);
+	dstr_replace(label, "%1", buf->array);
 	size_t idx = obs_property_list_add_int(p, label->array, *val);
 	obs_property_list_item_disable(p, idx, true);
 
@@ -2236,7 +2242,41 @@ static obs_properties_t *av_capture_properties(void *data)
 		OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(dev_list, "", "");
 
-	for (AVCaptureDevice *dev in [AVCaptureDevice devices]) {
+	NSArray *devices = nil;
+#if (__MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_15)
+	if (@available(macOS 10.15, *)) {
+		AVCaptureDeviceDiscoverySession *mediaDeviceDiscoverySession =
+			[AVCaptureDeviceDiscoverySession
+				discoverySessionWithDeviceTypes:@[
+					AVCaptureDeviceTypeBuiltInWideAngleCamera,
+					AVCaptureDeviceTypeExternalUnknown
+				]
+						      mediaType:AVMediaTypeVideo
+						       position:AVCaptureDevicePositionUnspecified];
+		NSArray *mediaDevices = [mediaDeviceDiscoverySession devices];
+
+		AVCaptureDeviceDiscoverySession *muxedDeviceDiscoverySession =
+			[AVCaptureDeviceDiscoverySession
+				discoverySessionWithDeviceTypes:@[
+					AVCaptureDeviceTypeExternalUnknown
+				]
+						      mediaType:AVMediaTypeMuxed
+						       position:AVCaptureDevicePositionUnspecified];
+		NSArray *muxedDevices = [muxedDeviceDiscoverySession devices];
+
+		devices = [mediaDevices
+			arrayByAddingObjectsFromArray:muxedDevices];
+	} else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+		devices = [AVCaptureDevice devices];
+#pragma clang diagnostic pop
+	}
+#else
+	devices = [AVCaptureDevice devices];
+#endif
+
+	for (AVCaptureDevice *dev in devices) {
 		if ([dev hasMediaType:AVMediaTypeVideo] ||
 		    [dev hasMediaType:AVMediaTypeMuxed]) {
 			obs_property_list_add_string(

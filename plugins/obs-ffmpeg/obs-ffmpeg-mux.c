@@ -638,7 +638,8 @@ static bool send_audio_headers(struct ffmpeg_muxer *stream,
 	struct encoder_packet packet = {
 		.type = OBS_ENCODER_AUDIO, .timebase_den = 1, .track_idx = idx};
 
-	obs_encoder_get_extra_data(aencoder, &packet.data, &packet.size);
+	if (!obs_encoder_get_extra_data(aencoder, &packet.data, &packet.size))
+		return false;
 	return write_packet(stream, &packet);
 }
 
@@ -649,7 +650,8 @@ static bool send_video_headers(struct ffmpeg_muxer *stream)
 	struct encoder_packet packet = {.type = OBS_ENCODER_VIDEO,
 					.timebase_den = 1};
 
-	obs_encoder_get_extra_data(vencoder, &packet.data, &packet.size);
+	if (!obs_encoder_get_extra_data(vencoder, &packet.data, &packet.size))
+		return false;
 	return write_packet(stream, &packet);
 }
 
@@ -915,7 +917,6 @@ static void replay_buffer_hotkey(void *data, obs_hotkey_id id,
 {
 	UNUSED_PARAMETER(id);
 	UNUSED_PARAMETER(hotkey);
-	UNUSED_PARAMETER(pressed);
 
 	if (!pressed)
 		return;

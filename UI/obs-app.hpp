@@ -74,6 +74,7 @@ class OBSApp : public QApplication {
 private:
 	std::string locale;
 	std::string theme;
+	QString defaultStyleSheet;
 	bool themeDarkMode = true;
 	ConfigFile globalConfig;
 	TextLookup textLookup;
@@ -239,6 +240,8 @@ extern bool opt_minimize_tray;
 extern bool opt_studio_mode;
 extern bool opt_allow_opengl;
 extern bool opt_always_on_top;
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 extern bool opt_disable_high_dpi_scaling;
+#endif
 extern std::string opt_starting_scene;
 extern bool restart;

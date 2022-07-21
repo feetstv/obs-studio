@@ -707,6 +707,7 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 	LoadEncoderTypes();
 	LoadColorRanges();
 	LoadColorSpaces();
+	LoadColorFormats();
 	LoadFormats();
 
 	auto ReloadAudioSources = [](void *data, calldata_t *param) {
@@ -759,6 +760,8 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 		SLOT(SurroundWarning(int)));
 	connect(ui->channelSetup, SIGNAL(currentIndexChanged(int)), this,
 		SLOT(SpeakerLayoutChanged(int)));
+	connect(ui->lowLatencyBuffering, SIGNAL(clicked(bool)), this,
+		SLOT(LowLatencyBufferingChanged(bool)));
 	connect(ui->simpleOutRecQuality, SIGNAL(currentIndexChanged(int)), this,
 		SLOT(SimpleRecordingQualityChanged()));
 	connect(ui->simpleOutRecQuality, SIGNAL(currentIndexChanged(int)), this,
@@ -925,6 +928,7 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 
 	channelIndex = ui->channelSetup->currentIndex();
 	sampleRateIndex = ui->sampleRate->currentIndex();
+	llBufferingEnabled = ui->lowLatencyBuffering->isChecked();
 
 	QRegularExpression rx("\\d{1,5}x\\d{1,5}");
 	QValidator *validator = new QRegularExpressionValidator(rx, this);
@@ -933,6 +937,8 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 
 	connect(ui->useStreamKeyAdv, SIGNAL(clicked()), this,
 		SLOT(UseStreamKeyAdvClicked()));
+
+	UpdateAudioWarnings();
 }
 
 OBSBasicSettings::~OBSBasicSettings()
@@ -1056,6 +1062,23 @@ void OBSBasicSettings::LoadColorSpaces()
 	ui->colorSpace->addItem(CS_601_STR, "601");
 	ui->colorSpace->addItem(CS_2100PQ_STR, "2100PQ");
 	ui->colorSpace->addItem(CS_2100HLG_STR, "2100HLG");
+}
+
+#define CF_NV12_STR QTStr("Basic.Settings.Advanced.Video.ColorFormat.NV12")
+#define CF_I420_STR QTStr("Basic.Settings.Advanced.Video.ColorFormat.I420")
+#define CF_I444_STR QTStr("Basic.Settings.Advanced.Video.ColorFormat.I444")
+#define CF_P010_STR QTStr("Basic.Settings.Advanced.Video.ColorFormat.P010")
+#define CF_I010_STR QTStr("Basic.Settings.Advanced.Video.ColorFormat.I010")
+#define CF_RGB_STR QTStr("Basic.Settings.Advanced.Video.ColorFormat.RGB")
+
+void OBSBasicSettings::LoadColorFormats()
+{
+	ui->colorFormat->addItem(CF_NV12_STR, "NV12");
+	ui->colorFormat->addItem(CF_I420_STR, "I420");
+	ui->colorFormat->addItem(CF_I444_STR, "I444");
+	ui->colorFormat->addItem(CF_P010_STR, "P010");
+	ui->colorFormat->addItem(CF_I010_STR, "I010");
+	ui->colorFormat->addItem(CF_RGB_STR, "RGB");
 }
 
 #define AV_FORMAT_DEFAULT_STR \
@@ -1215,7 +1238,7 @@ void OBSBasicSettings::LoadThemeList()
 				QDir::Files);
 		while (it.hasNext()) {
 			it.next();
-			QString name = it.fileName().section(".", 0, 0);
+			QString name = it.fileInfo().completeBaseName();
 			ui->theme->addItem(name);
 			uniqueSet.insert(name);
 		}
@@ -1231,7 +1254,7 @@ void OBSBasicSettings::LoadThemeList()
 			 QDir::Files);
 	while (uIt.hasNext()) {
 		uIt.next();
-		QString name = uIt.fileName().section(".", 0, 0);
+		QString name = uIt.fileInfo().completeBaseName();
 
 		if (name == DEFAULT_THEME)
 			name = defaultTheme;
@@ -2477,6 +2500,7 @@ void OBSBasicSettings::LoadAudioSources()
 					  pttCB, pttSB);
 
 		auto label = new OBSSourceLabel(source);
+		TruncateLabel(label, label->text());
 		label->setMinimumSize(QSize(170, 0));
 		label->setAlignment(Qt::AlignRight | Qt::AlignTrailing |
 				    Qt::AlignVCenter);
@@ -2517,6 +2541,8 @@ void OBSBasicSettings::LoadAudioSettings()
 		config_get_double(main->Config(), "Audio", "MeterDecayRate");
 	uint32_t peakMeterTypeIdx =
 		config_get_uint(main->Config(), "Audio", "PeakMeterType");
+	bool enableLLAudioBuffering = config_get_bool(
+		GetGlobalConfig(), "Audio", "LowLatencyAudioBuffering");
 
 	loading = true;
 
@@ -2553,6 +2579,7 @@ void OBSBasicSettings::LoadAudioSettings()
 		ui->meterDecayRate->setCurrentIndex(0);
 
 	ui->peakMeterType->setCurrentIndex(peakMeterTypeIdx);
+	ui->lowLatencyBuffering->setChecked(enableLLAudioBuffering);
 
 	LoadAudioDevices();
 	LoadAudioSources();
@@ -2562,13 +2589,13 @@ void OBSBasicSettings::LoadAudioSettings()
 
 void OBSBasicSettings::UpdateColorFormatSpaceWarning()
 {
-	const QString text = ui->colorFormat->currentText();
+	const QString format = ui->colorFormat->currentData().toString();
 	switch (ui->colorSpace->currentIndex()) {
 	case 3: /* Rec.2100 (PQ) */
 	case 4: /* Rec.2100 (HLG) */
-		if (text == "P010") {
+		if (format == "P010") {
 			ui->advancedMsg2->clear();
-		} else if (text == "I010") {
+		} else if (format == "I010") {
 			ui->advancedMsg2->setText(
 				QTStr("Basic.Settings.Advanced.FormatWarning"));
 		} else {
@@ -2577,9 +2604,9 @@ void OBSBasicSettings::UpdateColorFormatSpaceWarning()
 		}
 		break;
 	default:
-		if (text == "NV12") {
+		if (format == "NV12") {
 			ui->advancedMsg2->clear();
-		} else if ((text == "I010") || (text == "P010")) {
+		} else if ((format == "I010") || (format == "P010")) {
 			ui->advancedMsg2->setText(QTStr(
 				"Basic.Settings.Advanced.FormatWarning10BitSdr"));
 		} else {
@@ -2671,7 +2698,7 @@ void OBSBasicSettings::LoadAdvancedSettings()
 
 	UpdateColorFormatSpaceWarning();
 
-	SetComboByName(ui->colorFormat, videoColorFormat);
+	SetComboByValue(ui->colorFormat, videoColorFormat);
 	SetComboByValue(ui->colorSpace, videoColorSpace);
 	SetComboByValue(ui->colorRange, videoColorRange);
 	ui->sdrWhiteLevel->setValue(sdrWhiteLevel);
@@ -2726,8 +2753,6 @@ void OBSBasicSettings::LoadAdvancedSettings()
 	loading = false;
 }
 
-#define TRUNCATE_TEXT_LENGTH 80
-
 template<typename Func>
 static inline void
 LayoutHotkey(OBSBasicSettings *settings, obs_hotkey_id id, obs_hotkey_t *key,
@@ -2738,13 +2763,7 @@ LayoutHotkey(OBSBasicSettings *settings, obs_hotkey_id id, obs_hotkey_t *key,
 	QString text = QT_UTF8(obs_hotkey_get_description(key));
 
 	label->setProperty("fullName", text);
-
-	if (text.length() > TRUNCATE_TEXT_LENGTH) {
-		text = text.left(TRUNCATE_TEXT_LENGTH);
-		text += "...'";
-	}
-
-	label->setText(text);
+	TruncateLabel(label, text);
 
 	OBSHotkeyWidget *hw = nullptr;
 
@@ -2776,14 +2795,7 @@ static QLabel *makeLabel(const OBSSource &source, Func &&)
 	OBSSourceLabel *label = new OBSSourceLabel(source);
 	label->setStyleSheet("font-weight: bold;");
 	QString name = QT_UTF8(obs_source_get_name(source));
-
-	if (name.length() > TRUNCATE_TEXT_LENGTH) {
-		label->setToolTip(name);
-		name = name.left(TRUNCATE_TEXT_LENGTH);
-		name += "...";
-	}
-
-	label->setText(name);
+	TruncateLabel(label, name);
 
 	return label;
 }
@@ -3092,12 +3104,9 @@ void OBSBasicSettings::SaveGeneralSettings()
 	if (themeData == defaultTheme)
 		themeData = DEFAULT_THEME;
 
-	if (WidgetChanged(ui->theme)) {
+	if (WidgetChanged(ui->theme))
 		config_set_string(GetGlobalConfig(), "General", "CurrentTheme2",
 				  QT_TO_UTF8(themeData));
-
-		App()->SetTheme(themeData.toUtf8().constData());
-	}
 
 #if defined(_WIN32) || defined(__APPLE__)
 	if (WidgetChanged(ui->enableAutoUpdates))
@@ -3378,7 +3387,7 @@ void OBSBasicSettings::SaveAdvancedSettings()
 				ui->resetOSXVSync->isChecked());
 #endif
 
-	SaveCombo(ui->colorFormat, "Video", "ColorFormat");
+	SaveComboData(ui->colorFormat, "Video", "ColorFormat");
 	SaveComboData(ui->colorSpace, "Video", "ColorSpace");
 	SaveComboData(ui->colorRange, "Video", "ColorRange");
 	SaveSpinBox(ui->sdrWhiteLevel, "Video", "SdrWhiteLevel");
@@ -3557,6 +3566,11 @@ void OBSBasicSettings::SaveOutputSettings()
 #endif
 	else if (encoder == SIMPLE_ENCODER_AMD)
 		presetType = "AMDPreset";
+	else if (encoder == SIMPLE_ENCODER_APPLE_H264)
+		/* The Apple encoders don't have presets like the other encoders
+         do. This only exists to make sure that the x264 preset doesn't
+         get overwritten with empty data. */
+		presetType = "ApplePreset";
 	else
 		presetType = "Preset";
 
@@ -3746,6 +3760,14 @@ void OBSBasicSettings::SaveAudioSettings()
 				peakMeterTypeIdx);
 
 		main->UpdateVolumeControlsPeakMeterType();
+	}
+
+	if (WidgetChanged(ui->lowLatencyBuffering)) {
+		bool enableLLAudioBuffering =
+			ui->lowLatencyBuffering->isChecked();
+		config_set_bool(GetGlobalConfig(), "Audio",
+				"LowLatencyAudioBuffering",
+				enableLLAudioBuffering);
 	}
 
 	for (auto &audioSource : audioSources) {
@@ -4281,9 +4303,12 @@ void OBSBasicSettings::AudioChangedRestart()
 	if (!loading) {
 		int currentChannelIndex = ui->channelSetup->currentIndex();
 		int currentSampleRateIndex = ui->sampleRate->currentIndex();
+		bool currentLLAudioBufVal =
+			ui->lowLatencyBuffering->isChecked();
 
 		if (currentChannelIndex != channelIndex ||
-		    currentSampleRateIndex != sampleRateIndex) {
+		    currentSampleRateIndex != sampleRateIndex ||
+		    currentLLAudioBufVal != llBufferingEnabled) {
 			audioChanged = true;
 			ui->audioMsg->setText(
 				QTStr("Basic.Settings.ProgramRestart"));
@@ -4312,13 +4337,9 @@ void OBSBasicSettings::SpeakerLayoutChanged(int idx)
 	bool surround = IsSurround(speakerLayout.c_str());
 
 	if (surround) {
-		QString warning = QTStr(MULTI_CHANNEL_WARNING ".Enabled") +
-				  QStringLiteral("\n\n") +
-				  QTStr(MULTI_CHANNEL_WARNING);
 		/*
 		 * Display all bitrates
 		 */
-		ui->audioMsg_2->setText(warning);
 		PopulateAACBitrates(
 			{ui->simpleOutputABitrate, ui->advOutTrack1Bitrate,
 			 ui->advOutTrack2Bitrate, ui->advOutTrack3Bitrate,
@@ -4329,7 +4350,6 @@ void OBSBasicSettings::SpeakerLayoutChanged(int idx)
 		 * Reset audio bitrate for simple and adv mode, update list of
 		 * bitrates and save setting.
 		 */
-		ui->audioMsg_2->setText(QString());
 		RestrictResetBitrates(
 			{ui->simpleOutputABitrate, ui->advOutTrack1Bitrate,
 			 ui->advOutTrack2Bitrate, ui->advOutTrack3Bitrate,
@@ -4345,6 +4365,8 @@ void OBSBasicSettings::SpeakerLayoutChanged(int idx)
 		SaveCombo(ui->advOutTrack5Bitrate, "AdvOut", "Track5Bitrate");
 		SaveCombo(ui->advOutTrack6Bitrate, "AdvOut", "Track6Bitrate");
 	}
+
+	UpdateAudioWarnings();
 }
 
 void OBSBasicSettings::HideOBSWindowWarning(int state)
@@ -4783,6 +4805,14 @@ void OBSBasicSettings::FillSimpleRecordingValues()
 		ui->simpleOutRecEncoder->addItem(
 			ENCODER_STR("Hardware.AMD.H264"),
 			QString(SIMPLE_ENCODER_AMD));
+	if (EncoderAvailable("com.apple.videotoolbox.videoencoder.ave.avc")
+#ifndef __aarch64__
+	    && os_get_emulation_status() == true
+#endif
+	)
+		ui->simpleOutRecEncoder->addItem(
+			ENCODER_STR("Hardware.Apple.H264"),
+			QString(SIMPLE_ENCODER_APPLE_H264));
 #undef ADD_QUALITY
 }
 
@@ -4808,6 +4838,18 @@ void OBSBasicSettings::FillSimpleStreamingValues()
 		ui->simpleOutStrEncoder->addItem(
 			ENCODER_STR("Hardware.AMD.H264"),
 			QString(SIMPLE_ENCODER_AMD));
+/* Preprocessor guard required for the macOS version check */
+#ifdef __APPLE__
+	if (EncoderAvailable("com.apple.videotoolbox.videoencoder.ave.avc")
+#ifndef __aarch64__
+	    && os_get_emulation_status() == true
+#endif
+	)
+		if (__builtin_available(macOS 13.0, *))
+			ui->simpleOutStrEncoder->addItem(
+				ENCODER_STR("Hardware.Apple.H264"),
+				QString(SIMPLE_ENCODER_APPLE_H264));
+#endif
 #undef ENCODER_STR
 }
 
@@ -4850,6 +4892,9 @@ void OBSBasicSettings::SimpleStreamingEncoderChanged()
 	QString preset;
 	const char *defaultPreset = nullptr;
 
+	ui->simpleOutAdvanced->setVisible(true);
+	ui->simpleOutPresetLabel->setVisible(true);
+	ui->simpleOutPreset->setVisible(true);
 	ui->simpleOutPreset->clear();
 
 	if (encoder == SIMPLE_ENCODER_QSV) {
@@ -4921,15 +4966,36 @@ void OBSBasicSettings::SimpleStreamingEncoderChanged()
 
 		defaultPreset = "balanced";
 		preset = curAMDPreset;
+	} else if (encoder == SIMPLE_ENCODER_APPLE_H264) {
+		ui->simpleOutAdvanced->setChecked(false);
+		ui->simpleOutAdvanced->setVisible(false);
+		ui->simpleOutPreset->setVisible(false);
+		ui->simpleOutPresetLabel->setVisible(false);
 	} else {
-		ui->simpleOutPreset->addItem("ultrafast", "ultrafast");
+
+#define PRESET_STR(val) \
+	QString(Str("Basic.Settings.Output.EncoderPreset." val)).arg(val)
+		ui->simpleOutPreset->addItem(PRESET_STR("ultrafast"),
+					     "ultrafast");
 		ui->simpleOutPreset->addItem("superfast", "superfast");
-		ui->simpleOutPreset->addItem("veryfast", "veryfast");
+		ui->simpleOutPreset->addItem(PRESET_STR("veryfast"),
+					     "veryfast");
 		ui->simpleOutPreset->addItem("faster", "faster");
-		ui->simpleOutPreset->addItem("fast", "fast");
-		ui->simpleOutPreset->addItem("medium", "medium");
-		ui->simpleOutPreset->addItem("slow", "slow");
-		ui->simpleOutPreset->addItem("slower", "slower");
+		ui->simpleOutPreset->addItem(PRESET_STR("fast"), "fast");
+#undef PRESET_STR
+
+		/* Users might have previously selected a preset which is no
+		 * longer available in simple mode. Make sure we don't mess
+		 * with their setups without them knowing. */
+		if (ui->simpleOutPreset->findData(curPreset) == -1) {
+			ui->simpleOutPreset->addItem(curPreset, curPreset);
+			QStandardItemModel *model =
+				qobject_cast<QStandardItemModel *>(
+					ui->simpleOutPreset->model());
+			QStandardItem *item =
+				model->item(model->rowCount() - 1);
+			item->setEnabled(false);
+		}
 
 		defaultPreset = "veryfast";
 		preset = curPreset;
@@ -5205,6 +5271,56 @@ void OBSBasicSettings::SurroundWarning(int idx)
 	}
 
 	lastChannelSetupIdx = idx;
+}
+
+#define LL_BUFFERING_WARNING "Basic.Settings.Audio.LowLatencyBufferingWarning"
+
+void OBSBasicSettings::UpdateAudioWarnings()
+{
+	QString speakerLayoutQstr = ui->channelSetup->currentText();
+	bool surround = IsSurround(QT_TO_UTF8(speakerLayoutQstr));
+	bool lowBufferingActive = ui->lowLatencyBuffering->isChecked();
+
+	QString text;
+
+	if (surround) {
+		text = QTStr(MULTI_CHANNEL_WARNING ".Enabled") +
+		       QStringLiteral("\n\n") + QTStr(MULTI_CHANNEL_WARNING);
+	}
+
+	if (lowBufferingActive) {
+		if (!text.isEmpty())
+			text += QStringLiteral("\n\n");
+
+		text += QTStr(LL_BUFFERING_WARNING ".Enabled") +
+			QStringLiteral("\n\n") + QTStr(LL_BUFFERING_WARNING);
+	}
+
+	ui->audioMsg_2->setText(text);
+}
+
+void OBSBasicSettings::LowLatencyBufferingChanged(bool checked)
+{
+	if (checked) {
+		QString warningStr = QTStr(LL_BUFFERING_WARNING) +
+				     QStringLiteral("\n\n") +
+				     QTStr(LL_BUFFERING_WARNING ".Confirm");
+
+		auto button = OBSMessageBox::question(
+			this, QTStr(LL_BUFFERING_WARNING ".Title"), warningStr);
+
+		if (button == QMessageBox::No) {
+			QMetaObject::invokeMethod(ui->lowLatencyBuffering,
+						  "setChecked",
+						  Qt::QueuedConnection,
+						  Q_ARG(bool, false));
+			return;
+		}
+	}
+
+	QMetaObject::invokeMethod(this, "UpdateAudioWarnings",
+				  Qt::QueuedConnection);
+	QMetaObject::invokeMethod(this, "AudioChangedRestart");
 }
 
 void OBSBasicSettings::SimpleRecordingQualityLosslessWarning(int idx)

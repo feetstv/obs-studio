@@ -2,6 +2,7 @@
 #import <ScriptingBridge/ScriptingBridge.h>
 #import "syphon-framework/Syphon.h"
 #include <obs-module.h>
+#include <AvailabilityMacros.h>
 
 #define LOG(level, message, ...)                                    \
 	blog(level, "%s: " message, obs_source_get_name(s->source), \
@@ -450,8 +451,6 @@ static inline void syphon_destroy_internal(syphon_t s);
 
 static void *syphon_create_internal(obs_data_t *settings, obs_source_t *source)
 {
-	UNUSED_PARAMETER(source);
-
 	syphon_t s = bzalloc(sizeof(struct syphon));
 	if (!s)
 		return s;
@@ -621,7 +620,19 @@ static inline NSString *get_inject_application_path()
 {
 	static NSString *ident = @"zakk.lol.SyphonInject";
 	NSWorkspace *ws = [NSWorkspace sharedWorkspace];
+#if (__MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_VERSION_11_0)
+	if (@available(macOS 11.0, *)) {
+		NSURL *url = [ws URLForApplicationWithBundleIdentifier:ident];
+		return [url absoluteString];
+	} else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+		return [ws absolutePathForAppBundleWithIdentifier:ident];
+#pragma clang diagnostic pop
+	}
+#else
 	return [ws absolutePathForAppBundleWithIdentifier:ident];
+#endif
 }
 
 static inline bool is_inject_available_in_lib_dir(NSFileManager *fm, NSURL *url)
@@ -667,7 +678,11 @@ static inline void launch_syphon_inject_internal()
 	NSString *path = get_inject_application_path();
 	NSWorkspace *ws = [NSWorkspace sharedWorkspace];
 	if (path)
+	/* This is only ever relevant on macOS 10.13 */
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 		[ws launchApplication:path];
+#pragma clang diagnostic pop
 }
 
 static bool launch_syphon_inject(obs_properties_t *props, obs_property_t *prop,
@@ -865,7 +880,24 @@ static void show_syphon_license_internal(void)
 		return;
 
 	NSWorkspace *ws = [NSWorkspace sharedWorkspace];
+
+#if (__MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_VERSION_11_0)
+	if (@available(macOS 11.0, *)) {
+		NSURL *url = [NSURL
+			URLWithString:
+				[NSString
+					stringWithCString:path
+						 encoding:NSUTF8StringEncoding]];
+		[ws openURL:url];
+	} else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+		[ws openFile:@(path)];
+#pragma clang diagnostic pop
+	}
+#else
 	[ws openFile:@(path)];
+#endif
 	bfree(path);
 }
 
@@ -1009,8 +1041,6 @@ static inline void tick_inject_state(syphon_t s, float seconds)
 
 static void syphon_video_tick(void *data, float seconds)
 {
-	UNUSED_PARAMETER(seconds);
-
 	syphon_t s = data;
 
 	if (s->inject_active && !s->inject_server_found)

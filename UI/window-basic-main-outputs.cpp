@@ -97,8 +97,6 @@ static void OBSStopRecording(void *data, calldata_t *params)
 	QMetaObject::invokeMethod(output->main, "RecordingStop",
 				  Q_ARG(int, code),
 				  Q_ARG(QString, arg_last_error));
-
-	UNUSED_PARAMETER(params);
 }
 
 static void OBSRecordStopping(void *data, calldata_t *params)
@@ -143,8 +141,6 @@ static void OBSStopReplayBuffer(void *data, calldata_t *params)
 	os_atomic_set_bool(&replaybuf_active, false);
 	QMetaObject::invokeMethod(output->main, "ReplayBufferStop",
 				  Q_ARG(int, code));
-
-	UNUSED_PARAMETER(params);
 }
 
 static void OBSReplayBufferStopping(void *data, calldata_t *params)
@@ -182,8 +178,6 @@ static void OBSStopVirtualCam(void *data, calldata_t *params)
 	os_atomic_set_bool(&virtualcam_active, false);
 	QMetaObject::invokeMethod(output->main, "OnVirtualCamStop",
 				  Q_ARG(int, code));
-
-	UNUSED_PARAMETER(params);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -289,6 +283,7 @@ struct SimpleOutput : BasicOutputHandler {
 	void UpdateRecordingSettings_nvenc_hevc(int cqp);
 #endif
 	void UpdateRecordingSettings_amd_cqp(int cqp);
+	void UpdateRecordingSettings_apple(int quality);
 	void UpdateRecordingSettings();
 	void UpdateRecordingAudioSettings();
 	virtual void Update() override;
@@ -402,6 +397,9 @@ void SimpleOutput::LoadRecordingPreset()
 						 : "ffmpeg_hevc_nvenc";
 			LoadRecordingPreset_Lossy(id);
 #endif
+		} else if (strcmp(encoder, SIMPLE_ENCODER_APPLE_H264) == 0) {
+			LoadRecordingPreset_Lossy(
+				"com.apple.videotoolbox.videoencoder.ave.avc");
 		}
 		usingRecordingPreset = true;
 
@@ -437,6 +435,10 @@ SimpleOutput::SimpleOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 					 : "ffmpeg_hevc_nvenc";
 		LoadStreamingPreset_Lossy(id);
 #endif
+
+	} else if (strcmp(encoder, SIMPLE_ENCODER_APPLE_H264) == 0) {
+		LoadStreamingPreset_Lossy(
+			"com.apple.videotoolbox.videoencoder.ave.avc");
 
 	} else {
 		LoadStreamingPreset_Lossy("obs_x264");
@@ -547,14 +549,13 @@ void SimpleOutput::Update()
 	}
 
 	preset = config_get_string(main->Config(), "SimpleOutput", presetType);
+	obs_data_set_string(videoSettings, "preset", preset);
 
 	obs_data_set_string(videoSettings, "rate_control", "CBR");
 	obs_data_set_int(videoSettings, "bitrate", videoBitrate);
 
-	if (advanced) {
-		obs_data_set_string(videoSettings, "preset", preset);
+	if (advanced)
 		obs_data_set_string(videoSettings, "x264opts", custom);
-	}
 
 	obs_data_set_string(aacSettings, "rate_control", "CBR");
 	obs_data_set_int(aacSettings, "bitrate", audioBitrate);
@@ -691,6 +692,16 @@ void SimpleOutput::UpdateRecordingSettings_nvenc_hevc(int cqp)
 }
 #endif
 
+void SimpleOutput::UpdateRecordingSettings_apple(int quality)
+{
+	OBSDataAutoRelease settings = obs_data_create();
+	obs_data_set_string(settings, "rate_control", "CRF");
+	obs_data_set_string(settings, "profile", "high");
+	obs_data_set_int(settings, "quality", quality);
+
+	obs_encoder_update(videoRecording, settings);
+}
+
 void SimpleOutput::UpdateStreamingSettings_amd(obs_data_t *settings,
 					       int bitrate)
 {
@@ -755,6 +766,9 @@ void SimpleOutput::UpdateRecordingSettings()
 	} else if (videoEncoder == SIMPLE_ENCODER_NVENC_HEVC) {
 		UpdateRecordingSettings_nvenc_hevc(crf);
 #endif
+	} else if (videoEncoder == SIMPLE_ENCODER_APPLE_H264) {
+		/* These are magic numbers. 0 - 100, more is better. */
+		UpdateRecordingSettings_apple(ultra_hq ? 70 : 50);
 	}
 	UpdateRecordingAudioSettings();
 }

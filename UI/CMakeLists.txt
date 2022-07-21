@@ -112,6 +112,7 @@ target_sources(
           forms/AutoConfigVideoPage.ui
           forms/ColorSelect.ui
           forms/OBSAbout.ui
+          forms/OBSAdvAudio.ui
           forms/OBSBasic.ui
           forms/OBSBasicFilters.ui
           forms/OBSBasicInteraction.ui
@@ -151,8 +152,6 @@ target_sources(
           crash-report.cpp
           crash-report.hpp
           display-helpers.hpp
-          streaming-helpers.cpp
-          streaming-helpers.hpp
           platform.hpp
           qt-display.cpp
           qt-display.hpp
@@ -160,6 +159,8 @@ target_sources(
           qt-wrappers.hpp
           ui-validation.cpp
           ui-validation.hpp
+          multiview.cpp
+          multiview.hpp
           ${CMAKE_SOURCE_DIR}/deps/json11/json11.cpp
           ${CMAKE_SOURCE_DIR}/deps/json11/json11.hpp
           ${CMAKE_SOURCE_DIR}/deps/libff/libff/ff-util.c
@@ -187,6 +188,8 @@ target_sources(
           focus-list.hpp
           hotkey-edit.cpp
           hotkey-edit.hpp
+          lineedit-autoresize.cpp
+          lineedit-autoresize.hpp
           locked-checkbox.cpp
           locked-checkbox.hpp
           log-viewer.cpp
@@ -362,6 +365,7 @@ if(OS_WINDOWS)
                 _CRT_NONSTDC_NO_WARNINGS)
 
   if(MSVC)
+    target_link_options(obs PRIVATE "LINKER:/IGNORE:4098" "LINKER:/IGNORE:4099")
     target_link_libraries(obs PRIVATE OBS::w32-pthreads)
 
     set_source_files_properties(
