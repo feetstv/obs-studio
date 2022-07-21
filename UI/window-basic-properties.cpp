@@ -77,7 +77,8 @@ OBSBasicProperties::OBSBasicProperties(QWidget *parent, OBSSource source_)
 		nd_settings.Get(), source,
 		(PropertiesReloadCallback)obs_source_properties,
 		(PropertiesUpdateCallback) nullptr, // No special handling required for undo/redo
-		(PropertiesVisualUpdateCb)obs_source_update);
+		(PropertiesVisualUpdateCb)obs_source_update,
+		0, true);
 	view->setMinimumHeight(150);
 
 	ui->propertiesLayout->addWidget(view);

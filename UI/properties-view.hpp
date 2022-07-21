@@ -104,6 +104,7 @@ private:
 	PropertiesUpdateCallback callback = nullptr;
 	PropertiesVisualUpdateCb visUpdateCb = nullptr;
 	int minSize;
+	bool narrow;
 	std::vector<std::unique_ptr<WidgetInfo>> children;
 	std::string lastFocused;
 	QWidget *lastWidget = nullptr;
@@ -113,7 +114,7 @@ private:
 	QLayout *NewWidget(obs_property_t *prop, QWidget *widget,
 			   const char *signal);
 
-	QLayout *AddCheckbox(obs_property_t *prop, QLabel *&label);
+	QLayout *AddCheckbox(obs_property_t *prop);
 	QLayout *AddText(obs_property_t *prop, QLabel *&label);
 	QLayout *AddPath(obs_property_t *prop, QLabel *&label);
 	QLayout *AddInt(obs_property_t *prop, QLabel *&label);
@@ -129,7 +130,7 @@ private:
 	QLayout *AddFrameRate(obs_property_t *prop, bool &warning,
 			      QLabel *&label);
 
-	QLayout *AddGroup(obs_property_t *prop, QLabel *&label);
+	QLayout *AddGroup(obs_property_t *prop);
 
 	void AddProperty(obs_property_t *property, QFormLayout *propsLayout);
 
@@ -153,15 +154,18 @@ public:
 			  PropertiesReloadCallback reloadCallback,
 			  PropertiesUpdateCallback callback,
 			  PropertiesVisualUpdateCb cb = nullptr,
-			  int minSize = 0);
+			  int minSize = 0,
+			  bool narrow = false);
 	OBSPropertiesView(OBSData settings, void *obj,
 			  PropertiesReloadCallback reloadCallback,
 			  PropertiesUpdateCallback callback,
 			  PropertiesVisualUpdateCb cb = nullptr,
-			  int minSize = 0);
+			  int minSize = 0,
+			  bool narrow = false);
 	OBSPropertiesView(OBSData settings, const char *type,
 			  PropertiesReloadCallback reloadCallback,
-			  int minSize = 0);
+			  int minSize = 0,
+			  bool narrow = false);
 
 #define obj_constructor(type)                                              \
 	inline OBSPropertiesView(OBSData settings, obs_##type##_t *type,   \

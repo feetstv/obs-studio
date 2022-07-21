@@ -180,7 +180,8 @@ OBSPropertiesView::OBSPropertiesView(OBSData settings_, obs_object_t *obj,
 				     PropertiesReloadCallback reloadCallback,
 				     PropertiesUpdateCallback callback_,
 				     PropertiesVisualUpdateCb visUpdateCb_,
-				     int minSize_)
+				     int minSize_,
+					 bool narrow_)
 	: VScrollArea(nullptr),
 	  properties(nullptr, obs_properties_destroy),
 	  settings(settings_),
@@ -188,7 +189,8 @@ OBSPropertiesView::OBSPropertiesView(OBSData settings_, obs_object_t *obj,
 	  reloadCallback(reloadCallback),
 	  callback(callback_),
 	  visUpdateCb(visUpdateCb_),
-	  minSize(minSize_)
+	  minSize(minSize_),
+	  narrow(narrow_)
 {
 	setFrameShape(QFrame::NoFrame);
 	QMetaObject::invokeMethod(this, "ReloadProperties",
@@ -199,7 +201,8 @@ OBSPropertiesView::OBSPropertiesView(OBSData settings_, void *obj,
 				     PropertiesReloadCallback reloadCallback,
 				     PropertiesUpdateCallback callback_,
 				     PropertiesVisualUpdateCb visUpdateCb_,
-				     int minSize_)
+				     int minSize_,
+					 bool narrow_)
 	: VScrollArea(nullptr),
 	  properties(nullptr, obs_properties_destroy),
 	  settings(settings_),
@@ -207,7 +210,8 @@ OBSPropertiesView::OBSPropertiesView(OBSData settings_, void *obj,
 	  reloadCallback(reloadCallback),
 	  callback(callback_),
 	  visUpdateCb(visUpdateCb_),
-	  minSize(minSize_)
+	  minSize(minSize_),
+	  narrow(narrow_)
 {
 	setFrameShape(QFrame::NoFrame);
 	QMetaObject::invokeMethod(this, "ReloadProperties",
@@ -216,13 +220,15 @@ OBSPropertiesView::OBSPropertiesView(OBSData settings_, void *obj,
 
 OBSPropertiesView::OBSPropertiesView(OBSData settings_, const char *type_,
 				     PropertiesReloadCallback reloadCallback_,
-				     int minSize_)
+				     int minSize_,
+					 bool narrow_)
 	: VScrollArea(nullptr),
 	  properties(nullptr, obs_properties_destroy),
 	  settings(settings_),
 	  type(type_),
 	  reloadCallback(reloadCallback_),
-	  minSize(minSize_)
+	  minSize(minSize_),
+	  narrow(narrow_)
 {
 	setFrameShape(QFrame::NoFrame);
 	QMetaObject::invokeMethod(this, "ReloadProperties",
@@ -256,14 +262,15 @@ QLayout *OBSPropertiesView::NewWidget(obs_property_t *prop, QWidget *widget,
 	return LayoutForWidget(widget);
 }
 
-QLayout *OBSPropertiesView::AddCheckbox(obs_property_t *prop, QLabel *&label)
+QLayout *OBSPropertiesView::AddCheckbox(obs_property_t *prop)
 {
 	const char *name = obs_property_name(prop);
 	const char *desc = obs_property_description(prop);
 	bool val = obs_data_get_bool(settings, name);
 
-	QCheckBox *checkbox = new QCheckBox(QT_UTF8(desc));
+	QCheckBox *checkbox = new QCheckBox(desc);
 	checkbox->setCheckState(val ? Qt::Checked : Qt::Unchecked);
+
 	return NewWidget(prop, checkbox, SIGNAL(stateChanged(int)));
 }
 
@@ -373,7 +380,7 @@ QLayout *OBSPropertiesView::AddPath(obs_property_t *prop, QLabel *&label)
 {
 	const char *name = obs_property_name(prop);
 	const char *val = obs_data_get_string(settings, name);
-	QLayout *subLayout = new QHBoxLayout();
+	QBoxLayout *subLayout = narrow ? (QBoxLayout *)(new QVBoxLayout) : (QBoxLayout *)(new QHBoxLayout);
 	QLineEdit *edit = new QLineEdit();
 	QPushButton *button = new QPushButton(QTStr("Browse"));
 
@@ -387,8 +394,13 @@ QLayout *OBSPropertiesView::AddPath(obs_property_t *prop, QLabel *&label)
 	edit->setReadOnly(true);
 	edit->setToolTip(QT_UTF8(obs_property_long_description(prop)));
 
-	subLayout->addWidget(edit);
-	subLayout->addWidget(button);
+	if (narrow) {
+		subLayout->addWidget(button);
+		subLayout->addWidget(edit);
+	} else {
+		subLayout->addWidget(edit);
+		subLayout->addWidget(button);
+	}
 
 	WidgetInfo *info = new WidgetInfo(this, prop, edit);
 	connect(button, SIGNAL(clicked()), info, SLOT(ControlChanged()));
@@ -401,7 +413,7 @@ QLayout *OBSPropertiesView::AddPath(obs_property_t *prop, QLabel *&label)
 QLayout *OBSPropertiesView::AddInt(obs_property_t *prop, QLabel *&label)
 {
 	obs_number_type type = obs_property_int_type(prop);
-	QLayout *subLayout = new QHBoxLayout();
+	QLayout *subLayout = narrow ? (QLayout *)(new QVBoxLayout) : (QLayout *)(new QHBoxLayout);
 
 	const char *name = obs_property_name(prop);
 	int val = (int)obs_data_get_int(settings, name);
@@ -424,6 +436,9 @@ QLayout *OBSPropertiesView::AddInt(obs_property_t *prop, QLabel *&label)
 	WidgetInfo *info = new WidgetInfo(this, prop, spin);
 	children.emplace_back(info);
 
+	if (narrow)
+		subLayout->addWidget(spin);
+
 	if (type == OBS_NUMBER_SLIDER) {
 		QSlider *slider = new SliderIgnoreScroll();
 		slider->setMinimum(minVal);
@@ -442,7 +457,8 @@ QLayout *OBSPropertiesView::AddInt(obs_property_t *prop, QLabel *&label)
 
 	connect(spin, SIGNAL(valueChanged(int)), info, SLOT(ControlChanged()));
 
-	subLayout->addWidget(spin);
+	if (!narrow)
+		subLayout->addWidget(spin);
 
 	label = new QLabel(QT_UTF8(obs_property_description(prop)));
 	return subLayout;
@@ -451,7 +467,7 @@ QLayout *OBSPropertiesView::AddInt(obs_property_t *prop, QLabel *&label)
 QLayout *OBSPropertiesView::AddFloat(obs_property_t *prop, QLabel *&label)
 {
 	obs_number_type type = obs_property_float_type(prop);
-	QLayout *subLayout = new QHBoxLayout();
+	QLayout *subLayout = narrow ? (QLayout *)(new QVBoxLayout) : (QLayout *)(new QHBoxLayout);
 
 	const char *name = obs_property_name(prop);
 	double val = obs_data_get_double(settings, name);
@@ -483,6 +499,9 @@ QLayout *OBSPropertiesView::AddFloat(obs_property_t *prop, QLabel *&label)
 	WidgetInfo *info = new WidgetInfo(this, prop, spin);
 	children.emplace_back(info);
 
+	if (narrow)
+		subLayout->addWidget(spin);
+
 	if (type == OBS_NUMBER_SLIDER) {
 		DoubleSlider *slider = new DoubleSlider();
 		slider->setDoubleConstraints(minVal, maxVal, stepVal, val);
@@ -498,7 +517,8 @@ QLayout *OBSPropertiesView::AddFloat(obs_property_t *prop, QLabel *&label)
 	connect(spin, SIGNAL(valueChanged(double)), info,
 		SLOT(ControlChanged()));
 
-	subLayout->addWidget(spin);
+	if (!narrow)
+		subLayout->addWidget(spin);
 
 	label = new QLabel(QT_UTF8(obs_property_description(prop)));
 	return subLayout;
@@ -687,7 +707,7 @@ QLayout *OBSPropertiesView::AddEditableList(obs_property_t *prop,
 		SLOT(EditListReordered(const QModelIndex &, int, int,
 				       const QModelIndex &, int)));
 
-	QVBoxLayout *sideLayout = new QVBoxLayout();
+	QBoxLayout *sideLayout = narrow ? (QBoxLayout *)(new QHBoxLayout) : (QBoxLayout *)(new QVBoxLayout);
 	NewButton(sideLayout, info, "addIconSmall", &WidgetInfo::EditListAdd);
 	NewButton(sideLayout, info, "removeIconSmall",
 		  &WidgetInfo::EditListRemove);
@@ -723,7 +743,6 @@ QLayout *OBSPropertiesView::AddColorInternal(obs_property_t *prop,
 					 QLabel *&label, bool supportAlpha)
 {
 	QPushButton *button = new QPushButton;
-	QLabel *colorLabel = new QLabel;
 	const char *name = obs_property_name(prop);
 	long long val = obs_data_get_int(settings, name);
 	QColor color = color_from_int(val);
@@ -731,11 +750,9 @@ QLayout *OBSPropertiesView::AddColorInternal(obs_property_t *prop,
 
 	if (!obs_property_enabled(prop)) {
 		button->setEnabled(false);
-		colorLabel->setEnabled(false);
 	}
 
 	button->setProperty("themeID", "settingsButtons");
-	button->setText(QTStr("Basic.PropertiesWindow.SelectColor"));
 	button->setToolTip(QT_UTF8(obs_property_long_description(prop)));
 
 	if (supportAlpha) {
@@ -746,29 +763,24 @@ QLayout *OBSPropertiesView::AddColorInternal(obs_property_t *prop,
 	}
 
 	QPalette palette = QPalette(color);
-	colorLabel->setFrameStyle(QFrame::Sunken | QFrame::Panel);
-	colorLabel->setText(color.name(format));
-	colorLabel->setPalette(palette);
-	colorLabel->setStyleSheet(
+	button->setPalette(palette);
+	button->setStyleSheet(
 		QString("background-color :%1; color: %2;")
 			.arg(palette.color(QPalette::Window).name(format))
 			.arg(palette.color(QPalette::WindowText).name(format)));
-	colorLabel->setAutoFillBackground(true);
-	colorLabel->setAlignment(Qt::AlignCenter);
-	colorLabel->setToolTip(QT_UTF8(obs_property_long_description(prop)));
+	button->setAutoFillBackground(true);
 
-	QHBoxLayout *subLayout = new QHBoxLayout;
-	subLayout->setContentsMargins(0, 0, 0, 0);
+    if (!narrow)
+		button->setText(color.name(format));
+    else
+        button->setFixedWidth(50);
 
-	subLayout->addWidget(colorLabel);
-	subLayout->addWidget(button);
-
-	WidgetInfo *info = new WidgetInfo(this, prop, colorLabel);
+	WidgetInfo *info = new WidgetInfo(this, prop, button);
 	connect(button, SIGNAL(clicked()), info, SLOT(ControlChanged()));
 	children.emplace_back(info);
 
 	label = new QLabel(QT_UTF8(obs_property_description(prop)));
-	return subLayout;
+	return LayoutForWidget(button);
 }
 
 QLayout *OBSPropertiesView::AddColor(obs_property_t *prop, QLabel *&label)
@@ -820,9 +832,12 @@ QLayout *OBSPropertiesView::AddFont(obs_property_t *prop, QLabel *&label)
 	OBSDataAutoRelease font_obj = obs_data_get_obj(settings, name);
 	const char *face = obs_data_get_string(font_obj, "face");
 	const char *style = obs_data_get_string(font_obj, "style");
+    long long size = obs_data_get_int(font_obj, "size");
 	QPushButton *button = new QPushButton;
 	QLabel *fontLabel = new QLabel;
 	QFont font;
+    
+    QString desc = QString("%1 %2, %3pt").arg(face, style, QString::number(size));
 
 	if (!obs_property_enabled(prop)) {
 		button->setEnabled(false);
@@ -833,20 +848,25 @@ QLayout *OBSPropertiesView::AddFont(obs_property_t *prop, QLabel *&label)
 	MakeQFont(font_obj, font, true);
 
 	button->setProperty("themeID", "settingsButtons");
-	button->setText(QTStr("Basic.PropertiesWindow.SelectFont"));
 	button->setToolTip(QT_UTF8(obs_property_long_description(prop)));
 
-	fontLabel->setFrameStyle(QFrame::Sunken | QFrame::Panel);
-	fontLabel->setFont(font);
-	fontLabel->setText(QString("%1 %2").arg(face, style));
-	fontLabel->setAlignment(Qt::AlignCenter);
-	fontLabel->setToolTip(QT_UTF8(obs_property_long_description(prop)));
-
-	QHBoxLayout *subLayout = new QHBoxLayout;
+	QBoxLayout *subLayout = narrow ? (QBoxLayout *)(new QVBoxLayout) : (QBoxLayout *)(new QHBoxLayout);
 	subLayout->setContentsMargins(0, 0, 0, 0);
 
-	subLayout->addWidget(fontLabel);
-	subLayout->addWidget(button);
+    if (narrow) {
+        button->setText(desc);
+        subLayout->addWidget(button);
+    } else {
+        fontLabel->setFrameStyle(QFrame::Sunken | QFrame::Panel);
+        fontLabel->setFont(font);
+        fontLabel->setText(desc);
+        fontLabel->setAlignment(Qt::AlignCenter);
+        fontLabel->setToolTip(QT_UTF8(obs_property_long_description(prop)));
+        subLayout->addWidget(fontLabel);
+        
+        button->setText(QTStr("Basic.PropertiesWindow.SelectFont"));
+        subLayout->addWidget(button);
+    }
 
 	WidgetInfo *info = new WidgetInfo(this, prop, fontLabel);
 	connect(button, SIGNAL(clicked()), info, SLOT(ControlChanged()));
@@ -1424,40 +1444,62 @@ QLayout *OBSPropertiesView::AddFrameRate(obs_property_t *prop, bool &warning, QL
 	return LayoutForWidget(widget);
 }
 
-QLayout *OBSPropertiesView::AddGroup(obs_property_t *prop, QLabel *&label)
+QLayout *OBSPropertiesView::AddGroup(obs_property_t *prop)
 {
 	const char *name = obs_property_name(prop);
 	bool val = obs_data_get_bool(settings, name);
 	const char *desc = obs_property_description(prop);
 	enum obs_group_type type = obs_property_group_type(prop);
 
-	// Create GroupBox
-	QGroupBox *groupBox = new QGroupBox(QT_UTF8(desc));
-	groupBox->setCheckable(type == OBS_GROUP_CHECKABLE);
-	groupBox->setChecked(groupBox->isCheckable() ? val : true);
-	groupBox->setAccessibleName("group");
-	groupBox->setEnabled(obs_property_enabled(prop));
-
-	// Create Layout and build content
-	QFormLayout *subLayout = new QFormLayout();
-	subLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-	groupBox->setLayout(subLayout);
+    QHBoxLayout *subLayout = new QHBoxLayout;
+    // Create Layout and build content
+    QFormLayout *groupLayout = new QFormLayout;
+    groupLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    
+    // Create GroupBox
+    QGroupBox *groupBox = new QGroupBox;
+    groupBox->setAccessibleName("group");
+    groupBox->setEnabled(obs_property_enabled(prop));
+    groupBox->setLayout(groupLayout);
+    
+    // Register Group Widget
+    WidgetInfo *info = new WidgetInfo(this, prop, groupBox);
+    children.emplace_back(info);
+    
+    bool needsButton = type == OBS_GROUP_CHECKABLE;
+    QAbstractButton *button = nullptr;
+    if (!needsButton) {
+        // Create label
+        QLabel *label = new QLabel(QT_UTF8(desc));
+        label->setStyleSheet("font-weight: bold;");
+        subLayout->addWidget(label);
+    } else {
+        // Create checkbox
+        button = new QCheckBox(desc);
+        button->setStyleSheet("font-weight: bold;");
+        button->setChecked(val);
+        groupBox->setEnabled(button->isChecked());
+        connect(button, SIGNAL(toggled(bool)), info, SLOT(ControlChanged()));
+        subLayout->addWidget(button);
+    }
+    
+    if (narrow) {
+        groupBox->setStyleSheet("padding-top: 0px; padding-bottom: 0px; margin-top: 0px; margin-bottom: 0px;");
+    }
+    
+    QFrame *line = new QFrame;
+    line->setFrameShape(QFrame::HLine);
+    line->setFrameShadow(QFrame::Sunken);
 
 	obs_properties_t *content = obs_property_group_content(prop);
 	obs_property_t *el = obs_properties_first(content);
 	while (el != nullptr) {
-		AddProperty(el, subLayout);
+		AddProperty(el, groupLayout);
 		obs_property_next(&el);
 	}
 
-	// Register Group Widget
-	WidgetInfo *info = new WidgetInfo(this, prop, groupBox);
-	children.emplace_back(info);
-
-	// Signals
-	connect(groupBox, SIGNAL(toggled(bool)), info, SLOT(ControlChanged()));
-
-	return LayoutForWidget(groupBox);
+	subLayout->addWidget(groupBox);
+	return subLayout;
 }
 
 void OBSPropertiesView::AddProperty(obs_property_t *property, QFormLayout *propsLayout)
@@ -1476,7 +1518,7 @@ void OBSPropertiesView::AddProperty(obs_property_t *property, QFormLayout *props
 	case OBS_PROPERTY_INVALID:
 		return;
 	case OBS_PROPERTY_BOOL:
-		layout = AddCheckbox(property, label);
+		layout = AddCheckbox(property);
 		break;
 	case OBS_PROPERTY_INT:
 		layout = AddInt(property, label);
@@ -1509,7 +1551,7 @@ void OBSPropertiesView::AddProperty(obs_property_t *property, QFormLayout *props
 		layout = AddFrameRate(property, warning, label);
 		break;
 	case OBS_PROPERTY_GROUP:
-		layout = AddGroup(property, label);
+		layout = AddGroup(property);
 		break;
 	case OBS_PROPERTY_COLOR_ALPHA:
 		layout = AddColorAlpha(property, label);
@@ -1582,7 +1624,31 @@ void OBSPropertiesView::AddProperty(obs_property_t *property, QFormLayout *props
 		}
 	}
 
-	propsLayout->addRow(label, layout);
+    if (narrow) {
+        // layout->setAlignment(Qt::AlignRight);
+        
+        bool displayVertically = type == OBS_PROPERTY_TEXT ||
+            type == OBS_PROPERTY_FRAME_RATE ||
+            type == OBS_PROPERTY_EDITABLE_LIST ||
+            (type == OBS_PROPERTY_GROUP && obs_property_group_type(property) != OBS_GROUP_CHECKABLE);
+        
+        QVBoxLayout *containerLayout = new QVBoxLayout;
+        containerLayout->setSpacing(4);
+        
+        QBoxLayout *narrowLayout = displayVertically ? (QBoxLayout *)(new QVBoxLayout) : (QBoxLayout *)(new QHBoxLayout);
+        
+        narrowLayout->addWidget(label);
+        narrowLayout->addWidget(layout->itemAt(0)->widget());
+        
+        if (layout->count() > 1) {
+            layout->removeItem(layout->itemAt(0));
+            containerLayout->addLayout(narrowLayout);
+            containerLayout->addLayout(layout);
+        } else
+            containerLayout->addLayout(narrowLayout);
+        propsLayout->addRow(containerLayout);
+    } else
+        propsLayout->addRow(label, layout);
 
 	if (!lastFocused.empty())
 		if (lastFocused.compare(name) == 0)
@@ -1827,11 +1893,12 @@ bool WidgetInfo::ColorChangedInternal(const char *setting, bool supportAlpha)
 		format = QColor::HexRgb;
 	}
 
-	QLabel *label = static_cast<QLabel *>(widget);
-	label->setText(color.name(format));
+	QPushButton *button = static_cast<QPushButton *>(widget);
+    if (button->text().count() > 0)
+        button->setText(color.name(format));
 	QPalette palette = QPalette(color);
-	label->setPalette(palette);
-	label->setStyleSheet(
+	button->setPalette(palette);
+	button->setStyleSheet(
 		QString("background-color :%1; color: %2;")
 			.arg(palette.color(QPalette::Window).name(format))
 			.arg(palette.color(QPalette::WindowText).name(format)));
@@ -1900,10 +1967,11 @@ bool WidgetInfo::FontChanged(const char *setting)
 
 void WidgetInfo::GroupChanged(const char *setting)
 {
-	QGroupBox *groupbox = static_cast<QGroupBox *>(widget);
-	obs_data_set_bool(view->settings, setting,
-			  groupbox->isCheckable() ? groupbox->isChecked()
-						  : true);
+    bool checked = !obs_data_get_bool(view->settings, setting);
+    obs_data_set_bool(view->settings, setting, checked);
+
+    QGroupBox *groupBox = static_cast<QGroupBox *>(widget);
+    groupBox->setEnabled(checked);
 }
 
 void WidgetInfo::EditListReordered(const QModelIndex &parent, int start,
