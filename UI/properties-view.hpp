@@ -109,33 +109,29 @@ private:
 	QWidget *lastWidget = nullptr;
 	bool deferUpdate;
 
-	QWidget *NewWidget(obs_property_t *prop, QWidget *widget,
+	QLayout *LayoutForWidget(QWidget *widget);
+	QLayout *NewWidget(obs_property_t *prop, QWidget *widget,
 			   const char *signal);
 
-	QWidget *AddCheckbox(obs_property_t *prop);
-	QWidget *AddText(obs_property_t *prop, QFormLayout *layout,
-			 QLabel *&label);
-	void AddPath(obs_property_t *prop, QFormLayout *layout, QLabel **label);
-	void AddInt(obs_property_t *prop, QFormLayout *layout, QLabel **label);
-	void AddFloat(obs_property_t *prop, QFormLayout *layout,
-		      QLabel **label);
-	QWidget *AddList(obs_property_t *prop, bool &warning);
-	void AddEditableList(obs_property_t *prop, QFormLayout *layout,
-			     QLabel *&label);
-	QWidget *AddButton(obs_property_t *prop);
-	void AddColorInternal(obs_property_t *prop, QFormLayout *layout,
-			      QLabel *&label, bool supportAlpha);
-	void AddColor(obs_property_t *prop, QFormLayout *layout,
-		      QLabel *&label);
-	void AddColorAlpha(obs_property_t *prop, QFormLayout *layout,
-			   QLabel *&label);
-	void AddFont(obs_property_t *prop, QFormLayout *layout, QLabel *&label);
-	void AddFrameRate(obs_property_t *prop, bool &warning,
-			  QFormLayout *layout, QLabel *&label);
+	QLayout *AddCheckbox(obs_property_t *prop, QLabel *&label);
+	QLayout *AddText(obs_property_t *prop, QLabel *&label);
+	QLayout *AddPath(obs_property_t *prop, QLabel *&label);
+	QLayout *AddInt(obs_property_t *prop, QLabel *&label);
+	QLayout *AddFloat(obs_property_t *prop, QLabel *&label);
+	QLayout *AddList(obs_property_t *prop, QLabel *&label, bool &warning);
+	QLayout *AddEditableList(obs_property_t *prop, QLabel *&label);
+	QLayout *AddButton(obs_property_t *prop);
+	QLayout *AddColorInternal(obs_property_t *prop, QLabel *&label,
+				  bool supportAlpha);
+	QLayout *AddColor(obs_property_t *prop, QLabel *&label);
+	QLayout *AddColorAlpha(obs_property_t *prop, QLabel *&label);
+	QLayout *AddFont(obs_property_t *prop, QLabel *&label);
+	QLayout *AddFrameRate(obs_property_t *prop, bool &warning,
+			      QLabel *&label);
 
-	void AddGroup(obs_property_t *prop, QFormLayout *layout);
+	QLayout *AddGroup(obs_property_t *prop, QLabel *&label);
 
-	void AddProperty(obs_property_t *property, QFormLayout *layout);
+	void AddProperty(obs_property_t *property, QFormLayout *propsLayout);
 
 	void resizeEvent(QResizeEvent *event) override;
 
