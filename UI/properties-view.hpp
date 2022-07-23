@@ -133,7 +133,8 @@ private:
 
 	QLayout *AddGroup(obs_property_t *prop, QButtonGroup *group);
 
-	void AddProperty(obs_property_t *property, QFormLayout *propsLayout, QButtonGroup *group);
+	void AddProperty(obs_property_t *property, QFormLayout *propsLayout,
+			 QButtonGroup *group);
 
 	void resizeEvent(QResizeEvent *event) override;
 
@@ -155,18 +156,15 @@ public:
 			  PropertiesReloadCallback reloadCallback,
 			  PropertiesUpdateCallback callback,
 			  PropertiesVisualUpdateCb cb = nullptr,
-			  int minSize = 0,
-			  bool narrow = false);
+			  int minSize = 0, bool narrow = false);
 	OBSPropertiesView(OBSData settings, void *obj,
 			  PropertiesReloadCallback reloadCallback,
 			  PropertiesUpdateCallback callback,
 			  PropertiesVisualUpdateCb cb = nullptr,
-			  int minSize = 0,
-			  bool narrow = false);
+			  int minSize = 0, bool narrow = false);
 	OBSPropertiesView(OBSData settings, const char *type,
 			  PropertiesReloadCallback reloadCallback,
-			  int minSize = 0,
-			  bool narrow = false);
+			  int minSize = 0, bool narrow = false);
 
 #define obj_constructor(type)                                              \
 	inline OBSPropertiesView(OBSData settings, obs_##type##_t *type,   \

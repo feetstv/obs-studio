@@ -131,7 +131,9 @@ void init_sparkle_updater(bool update_to_undeployed)
 {
 	delegate = [[OBSSparkleUpdateDelegate alloc] init];
 	delegate.updateToUndeployed = update_to_undeployed;
-    updater = [[SPUStandardUpdaterController alloc] initWithUpdaterDelegate:delegate userDriverDelegate:nil];
+	updater = [[SPUStandardUpdaterController alloc]
+		initWithUpdaterDelegate:delegate
+		     userDriverDelegate:nil];
 }
 
 void trigger_sparkle_update()
