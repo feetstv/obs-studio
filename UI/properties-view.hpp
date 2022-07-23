@@ -9,6 +9,7 @@
 #include <memory>
 
 class QFormLayout;
+class QButtonGroup;
 class OBSPropertiesView;
 class QLabel;
 
@@ -130,9 +131,9 @@ private:
 	QLayout *AddFrameRate(obs_property_t *prop, bool &warning,
 			      QLabel *&label);
 
-	QLayout *AddGroup(obs_property_t *prop);
+	QLayout *AddGroup(obs_property_t *prop, QButtonGroup *group);
 
-	void AddProperty(obs_property_t *property, QFormLayout *propsLayout);
+	void AddProperty(obs_property_t *property, QFormLayout *propsLayout, QButtonGroup *group);
 
 	void resizeEvent(QResizeEvent *event) override;
 

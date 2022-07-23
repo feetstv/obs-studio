@@ -2,6 +2,8 @@
 #include <QScrollBar>
 #include <QLabel>
 #include <QCheckBox>
+#include <QRadioButton>
+#include <QButtonGroup>
 #include <QFont>
 #include <QFontDialog>
 #include <QLineEdit>
@@ -129,7 +131,7 @@ void OBSPropertiesView::RefreshProperties()
 	bool hasNoProperties = !property;
 
 	while (property) {
-		AddProperty(property, layout);
+		AddProperty(property, layout, nullptr);
 		obs_property_next(&property);
 	}
 
@@ -1444,20 +1446,40 @@ QLayout *OBSPropertiesView::AddFrameRate(obs_property_t *prop, bool &warning, QL
 	return LayoutForWidget(widget);
 }
 
-QLayout *OBSPropertiesView::AddGroup(obs_property_t *prop)
+QLayout *OBSPropertiesView::AddGroup(obs_property_t *prop, QButtonGroup *group)
 {
 	const char *name = obs_property_name(prop);
 	bool val = obs_data_get_bool(settings, name);
 	const char *desc = obs_property_description(prop);
 	enum obs_group_type type = obs_property_group_type(prop);
 
+    QAbstractButton *button = nullptr;
+    
     QHBoxLayout *subLayout = new QHBoxLayout;
-    // Create Layout and build content
     QFormLayout *groupLayout = new QFormLayout;
     groupLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     
+    QFrame *line = new QFrame;
+    line->setFrameShape(QFrame::HLine);
+    line->setFrameShadow(QFrame::Sunken);
+
+	obs_properties_t *content = obs_property_group_content(prop);
+	obs_property_t *el = obs_properties_first(content);
+    
+    QButtonGroup *newGroup = nullptr;
+    if (type == OBS_GROUP_NORMAL)
+        newGroup = new QButtonGroup;
+    else if (group)
+        newGroup = group;
+    
+	while (el != nullptr) {
+		AddProperty(el, groupLayout, newGroup);
+		obs_property_next(&el);
+	}
+    
+    bool needsContainer = groupLayout->count() > 1;
     // Create GroupBox
-    QGroupBox *groupBox = new QGroupBox;
+    QWidget *groupBox = needsContainer ? (QWidget *)(new QGroupBox) : (QWidget *)(new QWidget);
     groupBox->setAccessibleName("group");
     groupBox->setEnabled(obs_property_enabled(prop));
     groupBox->setLayout(groupLayout);
@@ -1466,8 +1488,7 @@ QLayout *OBSPropertiesView::AddGroup(obs_property_t *prop)
     WidgetInfo *info = new WidgetInfo(this, prop, groupBox);
     children.emplace_back(info);
     
-    bool needsButton = type == OBS_GROUP_CHECKABLE;
-    QAbstractButton *button = nullptr;
+    bool needsButton = type == OBS_GROUP_CHECKABLE || type == OBS_GROUP_RADIO;
     if (!needsButton) {
         // Create label
         QLabel *label = new QLabel(QT_UTF8(desc));
@@ -1475,7 +1496,7 @@ QLayout *OBSPropertiesView::AddGroup(obs_property_t *prop)
         subLayout->addWidget(label);
     } else {
         // Create checkbox
-        button = new QCheckBox(desc);
+        button = type == OBS_GROUP_CHECKABLE ? (QAbstractButton *)(new QCheckBox(desc)) : (QAbstractButton *)(new QRadioButton(desc));
         button->setStyleSheet("font-weight: bold;");
         button->setChecked(val);
         groupBox->setEnabled(button->isChecked());
@@ -1485,24 +1506,14 @@ QLayout *OBSPropertiesView::AddGroup(obs_property_t *prop)
     
     if (narrow) {
         groupBox->setStyleSheet("padding-top: 0px; padding-bottom: 0px; margin-top: 0px; margin-bottom: 0px;");
+        groupLayout->setContentsMargins(4, 4, 4, 4);
     }
-    
-    QFrame *line = new QFrame;
-    line->setFrameShape(QFrame::HLine);
-    line->setFrameShadow(QFrame::Sunken);
-
-	obs_properties_t *content = obs_property_group_content(prop);
-	obs_property_t *el = obs_properties_first(content);
-	while (el != nullptr) {
-		AddProperty(el, groupLayout);
-		obs_property_next(&el);
-	}
 
 	subLayout->addWidget(groupBox);
 	return subLayout;
 }
 
-void OBSPropertiesView::AddProperty(obs_property_t *property, QFormLayout *propsLayout)
+void OBSPropertiesView::AddProperty(obs_property_t *property, QFormLayout *propsLayout, QButtonGroup *group)
 {
 	const char *name = obs_property_name(property);
 	obs_property_type type = obs_property_get_type(property);
@@ -1551,7 +1562,7 @@ void OBSPropertiesView::AddProperty(obs_property_t *property, QFormLayout *props
 		layout = AddFrameRate(property, warning, label);
 		break;
 	case OBS_PROPERTY_GROUP:
-		layout = AddGroup(property);
+        layout = AddGroup(property, group);
 		break;
 	case OBS_PROPERTY_COLOR_ALPHA:
 		layout = AddColorAlpha(property, label);
@@ -1959,7 +1970,7 @@ bool WidgetInfo::FontChanged(const char *setting)
 	QFont labelFont;
 	MakeQFont(font_obj, labelFont, true);
 	label->setFont(labelFont);
-	label->setText(QString("%1 %2").arg(font.family(), font.styleName()));
+	label->setText(QString("%1 %2, %3pt").arg(font.family(), font.styleName(), QString::number(font.pointSize())));
 
 	obs_data_set_obj(view->settings, setting, font_obj);
 	return true;
