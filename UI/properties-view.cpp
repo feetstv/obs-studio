@@ -1490,6 +1490,8 @@ QLayout *OBSPropertiesView::AddGroup(obs_property_t *prop, QButtonGroup *group)
 	groupBox->setAccessibleName("group");
 	groupBox->setEnabled(obs_property_enabled(prop));
 	groupBox->setLayout(groupLayout);
+    groupBox->setStyleSheet(
+        "padding-top: 0px; padding-bottom: 0px; margin-top: 0px; margin-bottom: 0px;");
 
 	// Register Group Widget
 	WidgetInfo *info = new WidgetInfo(this, prop, groupBox);
@@ -1515,11 +1517,8 @@ QLayout *OBSPropertiesView::AddGroup(obs_property_t *prop, QButtonGroup *group)
 		subLayout->addWidget(button);
 	}
 
-	if (narrow) {
-		groupBox->setStyleSheet(
-			"padding-top: 0px; padding-bottom: 0px; margin-top: 0px; margin-bottom: 0px;");
+	if (narrow)
 		groupLayout->setContentsMargins(4, 4, 4, 4);
-	}
 
 	subLayout->addWidget(groupBox);
 	return subLayout;
@@ -1651,8 +1650,6 @@ void OBSPropertiesView::AddProperty(obs_property_t *property,
 	}
 
 	if (narrow) {
-		// layout->setAlignment(Qt::AlignRight);
-
 		bool displayVertically = type == OBS_PROPERTY_TEXT ||
 					 type == OBS_PROPERTY_FRAME_RATE ||
 					 type == OBS_PROPERTY_EDITABLE_LIST ||
@@ -1667,7 +1664,8 @@ void OBSPropertiesView::AddProperty(obs_property_t *property,
 			displayVertically ? (QBoxLayout *)(new QVBoxLayout)
 					  : (QBoxLayout *)(new QHBoxLayout);
 
-		narrowLayout->addWidget(label);
+        if (label)
+            narrowLayout->addWidget(label);
 		narrowLayout->addWidget(layout->itemAt(0)->widget());
 
 		if (layout->count() > 1) {
@@ -1677,8 +1675,13 @@ void OBSPropertiesView::AddProperty(obs_property_t *property,
 		} else
 			containerLayout->addLayout(narrowLayout);
 		propsLayout->addRow(containerLayout);
-	} else
-		propsLayout->addRow(label, layout);
+    } else if (type == OBS_PROPERTY_GROUP) {
+        QVBoxLayout *verticalLayout = new QVBoxLayout;
+        verticalLayout->addWidget(layout->itemAt(0)->widget());
+        verticalLayout->addWidget(layout->itemAt(1)->widget());
+        propsLayout->addRow(verticalLayout);
+    } else
+        propsLayout->addRow(label, layout);
 
 	if (!lastFocused.empty())
 		if (lastFocused.compare(name) == 0)
