@@ -1171,8 +1171,8 @@ CreateFrameRateWidget(obs_property_t *prop, bool &warning, const char *option,
 		      frame_rate_ranges_t &fps_ranges)
 {
 	auto widget = new OBSFrameRatePropertyWidget{};
-	auto hlayout = new QHBoxLayout{};
-	hlayout->setContentsMargins(0, 0, 0, 0);
+	auto fpsLayout = new QVBoxLayout{};
+	fpsLayout->setContentsMargins(0, 0, 0, 0);
 
 	swap(widget->fps_ranges, fps_ranges);
 
@@ -1201,7 +1201,7 @@ CreateFrameRateWidget(obs_property_t *prop, bool &warning, const char *option,
 		combo->setCurrentIndex(combo->count() - 1);
 	}
 
-	hlayout->addWidget(combo, 0, Qt::AlignTop);
+	fpsLayout->addWidget(combo, 0, Qt::AlignTop);
 
 	auto stack = widget->modeDisplay = new QStackedWidget{};
 
@@ -1233,7 +1233,7 @@ CreateFrameRateWidget(obs_property_t *prop, bool &warning, const char *option,
 		warning = true;
 	}
 
-	hlayout->addWidget(stack, 0, Qt::AlignTop);
+	fpsLayout->addWidget(stack, 0, Qt::AlignTop);
 
 	auto label_area = widget->labels = new QWidget{};
 	label_area->setSizePolicy(QSizePolicy::Expanding,
@@ -1261,9 +1261,9 @@ CreateFrameRateWidget(obs_property_t *prop, bool &warning, const char *option,
 	vlayout->addWidget(max_label);
 	label_area->setLayout(vlayout);
 
-	hlayout->addWidget(label_area, 0, Qt::AlignTop);
+	fpsLayout->addWidget(label_area, 0, Qt::AlignTop);
 
-	widget->setLayout(hlayout);
+	widget->setLayout(fpsLayout);
 
 	return widget;
 }
