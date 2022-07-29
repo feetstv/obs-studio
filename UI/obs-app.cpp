@@ -474,11 +474,6 @@ bool OBSApp::InitGlobalConfigDefaults()
 	config_set_default_bool(globalConfig, "BasicWindow", "StudioModeLabels",
 				true);
 
-	if (!config_get_bool(globalConfig, "General", "Pre21Defaults")) {
-		config_set_default_string(globalConfig, "General",
-					  "CurrentTheme", DEFAULT_THEME);
-	}
-
 	config_set_default_string(globalConfig, "General", "HotkeyFocusType",
 				  "NeverDisableHotkeys");
 
@@ -1138,19 +1133,9 @@ bool OBSApp::InitTheme()
 	defaultStyleSheet = styleSheet();
 
 	const char *themeName =
-		config_get_string(globalConfig, "General", "CurrentTheme2");
-
-	if (!themeName)
-		/* Use deprecated "CurrentTheme" value if available */
-		themeName = config_get_string(globalConfig, "General",
-					      "CurrentTheme");
-	if (!themeName)
-		/* Use deprecated "Theme" value if available */
-		themeName = config_get_string(globalConfig, "General", "Theme");
+		config_get_string(globalConfig, "General", "CurrentTheme3");
 	if (!themeName)
 		themeName = DEFAULT_THEME;
-	if (!themeName)
-		themeName = "Dark";
 
 	if (strcmp(themeName, "Default") == 0)
 		themeName = "System";
@@ -2070,6 +2055,7 @@ static int run_program(fstream &logFile, int argc, char *argv[])
 
 #if __APPLE__
 	InstallNSApplicationSubclass();
+	InstallNSThreadLocks();
 
 	if (!isInBundle()) {
 		blog(LOG_ERROR,
@@ -2078,8 +2064,14 @@ static int run_program(fstream &logFile, int argc, char *argv[])
 	}
 #endif
 
-#if !defined(_WIN32) && !defined(__APPLE__) && defined(USE_XDG) && \
-	defined(ENABLE_WAYLAND)
+#if !defined(_WIN32) && !defined(__APPLE__)
+	/* NOTE: The Breeze Qt style plugin adds frame arround QDockWidget with
+	 * QPainter which can not be modifed. To avoid this the base style is
+	 * enforce to the Qt default style on Linux: Fusion. */
+
+	setenv("QT_STYLE_OVERRIDE", "Fusion", false);
+
+#if defined(ENABLE_WAYLAND) && defined(USE_XDG)
 	/* NOTE: Qt doesn't use the Wayland platform on GNOME, so we have to
 	 * force it using the QT_QPA_PLATFORM env var. It's still possible to
 	 * use other QPA platforms using this env var, or the -platform command
@@ -2088,6 +2080,7 @@ static int run_program(fstream &logFile, int argc, char *argv[])
 	const char *session_type = getenv("XDG_SESSION_TYPE");
 	if (session_type && strcmp(session_type, "wayland") == 0)
 		setenv("QT_QPA_PLATFORM", "wayland", false);
+#endif
 #endif
 
 	OBSApp program(argc, argv, profilerNameStore.get());
@@ -2122,16 +2115,15 @@ static int run_program(fstream &logFile, int argc, char *argv[])
 				QMessageBox::Yes | QMessageBox::Cancel);
 			QMessageBox mb(QMessageBox::Question,
 				       QTStr("AlreadyRunning.Title"),
-				       QTStr("AlreadyRunning.Text"), buttons,
-				       nullptr);
-			mb.setButtonText(QMessageBox::Yes,
-					 QTStr("AlreadyRunning.LaunchAnyway"));
-			mb.setButtonText(QMessageBox::Cancel, QTStr("Cancel"));
-			mb.setDefaultButton(QMessageBox::Cancel);
+				       QTStr("AlreadyRunning.Text"));
+			mb.addButton(QTStr("AlreadyRunning.LaunchAnyway"),
+				     QMessageBox::YesRole);
+			QPushButton *cancelButton = mb.addButton(
+				QTStr("Cancel"), QMessageBox::NoRole);
+			mb.setDefaultButton(cancelButton);
 
-			QMessageBox::StandardButton button;
-			button = (QMessageBox::StandardButton)mb.exec();
-			cancel_launch = button == QMessageBox::Cancel;
+			mb.exec();
+			cancel_launch = mb.clickedButton() == cancelButton;
 		}
 
 		if (cancel_launch)
@@ -2178,6 +2170,15 @@ static int run_program(fstream &logFile, int argc, char *argv[])
 		}
 
 #ifdef __APPLE__
+		MacPermissionStatus audio_permission =
+			CheckPermission(kAudioDeviceAccess);
+		MacPermissionStatus video_permission =
+			CheckPermission(kVideoDeviceAccess);
+		MacPermissionStatus accessibility_permission =
+			CheckPermission(kAccessibility);
+		MacPermissionStatus screen_permission =
+			CheckPermission(kScreenCapture);
+
 		bool rosettaTranslated = os_get_emulation_status();
 		blog(LOG_INFO, "Rosetta translation used: %s",
 		     rosettaTranslated ? "true" : "false");

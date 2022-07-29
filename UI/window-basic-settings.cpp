@@ -50,9 +50,6 @@
 #include <util/dstr.hpp>
 #include "ui-config.h"
 
-#define ENCODER_HIDE_FLAGS \
-	(OBS_ENCODER_CAP_DEPRECATED | OBS_ENCODER_CAP_INTERNAL)
-
 using namespace std;
 
 class SettingsEventFilter : public QObject {
@@ -353,6 +350,7 @@ void OBSBasicSettings::HookWidget(QWidget *widget, const char *signal,
 #define VIDEO_RESTART   SLOT(VideoChangedRestart())
 #define VIDEO_RES       SLOT(VideoChangedResolution())
 #define VIDEO_CHANGED   SLOT(VideoChanged())
+#define A11Y_CHANGED    SLOT(A11yChanged())
 #define ADV_CHANGED     SLOT(AdvancedChanged())
 #define ADV_RESTART     SLOT(AdvancedChangedRestart())
 /* clang-format on */
@@ -531,6 +529,8 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 	HookWidget(ui->fpsInteger,           SCROLL_CHANGED, VIDEO_CHANGED);
 	HookWidget(ui->fpsNumerator,         SCROLL_CHANGED, VIDEO_CHANGED);
 	HookWidget(ui->fpsDenominator,       SCROLL_CHANGED, VIDEO_CHANGED);
+	HookWidget(ui->colorsGroupBox,       CHECK_CHANGED,  A11Y_CHANGED);
+	HookWidget(ui->colorPreset,          COMBO_CHANGED,  A11Y_CHANGED);
 	HookWidget(ui->renderer,             COMBO_CHANGED,  ADV_RESTART);
 	HookWidget(ui->adapter,              COMBO_CHANGED,  ADV_RESTART);
 	HookWidget(ui->colorFormat,          COMBO_CHANGED,  ADV_CHANGED);
@@ -704,7 +704,6 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 
 	installEventFilter(new SettingsEventFilter());
 
-	LoadEncoderTypes();
 	LoadColorRanges();
 	LoadColorSpaces();
 	LoadColorFormats();
@@ -752,7 +751,6 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 				   this);
 
 	FillSimpleRecordingValues();
-	FillSimpleStreamingValues();
 	if (obs_audio_monitoring_available())
 		FillAudioMonitoringDevices();
 
@@ -939,6 +937,7 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 		SLOT(UseStreamKeyAdvClicked()));
 
 	UpdateAudioWarnings();
+	UpdateAdvNetworkGroup();
 }
 
 OBSBasicSettings::~OBSBasicSettings()
@@ -995,49 +994,6 @@ void OBSBasicSettings::SaveSpinBox(QSpinBox *widget, const char *section,
 {
 	if (WidgetChanged(widget))
 		config_set_int(main->Config(), section, value, widget->value());
-}
-
-#define TEXT_USE_STREAM_ENC \
-	QTStr("Basic.Settings.Output.Adv.Recording.UseStreamEncoder")
-
-void OBSBasicSettings::LoadEncoderTypes()
-{
-	const char *type;
-	size_t idx = 0;
-
-	ui->advOutRecEncoder->addItem(TEXT_USE_STREAM_ENC, "none");
-
-	while (obs_enum_encoder_types(idx++, &type)) {
-		const char *name = obs_encoder_get_display_name(type);
-		const char *codec = obs_get_encoder_codec(type);
-		uint32_t caps = obs_get_encoder_caps(type);
-
-		if (obs_get_encoder_type(type) != OBS_ENCODER_VIDEO)
-			continue;
-
-		const char *streaming_codecs[] = {
-			"h264",
-#ifdef ENABLE_HEVC
-			"hevc",
-#endif
-		};
-		bool is_streaming_codec = false;
-		for (const char *test_codec : streaming_codecs) {
-			if (strcmp(codec, test_codec) == 0) {
-				is_streaming_codec = true;
-				break;
-			}
-		}
-		if ((caps & ENCODER_HIDE_FLAGS) != 0)
-			continue;
-
-		QString qName = QT_UTF8(name);
-		QString qType = QT_UTF8(type);
-
-		if (is_streaming_codec)
-			ui->advOutEncoder->addItem(qName, qType);
-		ui->advOutRecEncoder->addItem(qName, qType);
-	}
 }
 
 #define CS_PARTIAL_STR QTStr("Basic.Settings.Advanced.Video.ColorRange.Partial")
@@ -1239,15 +1195,10 @@ void OBSBasicSettings::LoadThemeList()
 		while (it.hasNext()) {
 			it.next();
 			QString name = it.fileInfo().completeBaseName();
-			ui->theme->addItem(name);
+			ui->theme->addItem(name, name);
 			uniqueSet.insert(name);
 		}
 	}
-
-	QString defaultTheme;
-	defaultTheme += DEFAULT_THEME;
-	defaultTheme += " ";
-	defaultTheme += QTStr("Default");
 
 	/* Check shipped themes. */
 	QDirIterator uIt(QString(themeDir.c_str()), QStringList() << "*.qss",
@@ -1255,20 +1206,16 @@ void OBSBasicSettings::LoadThemeList()
 	while (uIt.hasNext()) {
 		uIt.next();
 		QString name = uIt.fileInfo().completeBaseName();
+		QString value = name;
 
 		if (name == DEFAULT_THEME)
-			name = defaultTheme;
+			name += " " + QTStr("Default");
 
-		if (!uniqueSet.contains(name) && name != "Default")
-			ui->theme->addItem(name);
+		if (!uniqueSet.contains(value) && name != "Default")
+			ui->theme->addItem(name, value);
 	}
 
-	std::string themeName = App()->GetTheme();
-
-	if (themeName == DEFAULT_THEME)
-		themeName = QT_TO_UTF8(defaultTheme);
-
-	int idx = ui->theme->findText(themeName.c_str());
+	int idx = ui->theme->findData(QT_UTF8(App()->GetTheme()));
 	if (idx != -1)
 		ui->theme->setCurrentIndex(idx);
 }
@@ -1945,7 +1892,8 @@ OBSBasicSettings::CreateEncoderPropertyView(const char *encoder,
 	view = new OBSPropertiesView(
 		settings.Get(), encoder,
 		(PropertiesReloadCallback)obs_get_encoder_properties, 170);
-	view->setFrameShape(QFrame::StyledPanel);
+	view->setFrameShape(QFrame::NoFrame);
+	view->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
 	view->setProperty("changed", QVariant(changed));
 	QObject::connect(view, SIGNAL(Changed()), this, SLOT(OutputsChanged()));
 
@@ -1960,7 +1908,9 @@ void OBSBasicSettings::LoadAdvOutputStreamingEncoderProperties()
 	delete streamEncoderProps;
 	streamEncoderProps =
 		CreateEncoderPropertyView(type, "streamEncoder.json");
-	ui->advOutputStreamTab->layout()->addWidget(streamEncoderProps);
+	streamEncoderProps->setSizePolicy(QSizePolicy::Preferred,
+					  QSizePolicy::Minimum);
+	ui->advOutEncoderLayout->addWidget(streamEncoderProps);
 
 	connect(streamEncoderProps, SIGNAL(Changed()), this,
 		SLOT(UpdateStreamDelayEstimate()));
@@ -2072,7 +2022,10 @@ void OBSBasicSettings::LoadAdvOutputRecordingEncoderProperties()
 	if (astrcmpi(type, "none") != 0) {
 		recordEncoderProps =
 			CreateEncoderPropertyView(type, "recordEncoder.json");
-		ui->advOutRecStandard->layout()->addWidget(recordEncoderProps);
+		recordEncoderProps->setSizePolicy(QSizePolicy::Preferred,
+						  QSizePolicy::Minimum);
+		ui->advOutRecEncoderProps->layout()->addWidget(
+			recordEncoderProps);
 		connect(recordEncoderProps, SIGNAL(Changed()), this,
 			SLOT(AdvReplayBufferChanged()));
 	}
@@ -2253,6 +2206,8 @@ void OBSBasicSettings::LoadAdvOutputAudioSettings()
 void OBSBasicSettings::LoadOutputSettings()
 {
 	loading = true;
+
+	ResetEncoders();
 
 	const char *mode = config_get_string(main->Config(), "Output", "Mode");
 
@@ -3080,6 +3035,8 @@ void OBSBasicSettings::LoadSettings(bool changedOnly)
 		LoadVideoSettings();
 	if (!changedOnly || hotkeysChanged)
 		LoadHotkeySettings();
+	if (!changedOnly || a11yChanged)
+		LoadA11ySettings();
 	if (!changedOnly || advancedChanged)
 		LoadAdvancedSettings();
 }
@@ -3095,17 +3052,10 @@ void OBSBasicSettings::SaveGeneralSettings()
 				  language.c_str());
 
 	int themeIndex = ui->theme->currentIndex();
-	QString themeData = ui->theme->itemText(themeIndex);
-	QString defaultTheme;
-	defaultTheme += DEFAULT_THEME;
-	defaultTheme += " ";
-	defaultTheme += QTStr("Default");
-
-	if (themeData == defaultTheme)
-		themeData = DEFAULT_THEME;
+	QString themeData = ui->theme->itemData(themeIndex).toString();
 
 	if (WidgetChanged(ui->theme))
-		config_set_string(GetGlobalConfig(), "General", "CurrentTheme2",
+		config_set_string(GetGlobalConfig(), "General", "CurrentTheme3",
 				  QT_TO_UTF8(themeData));
 
 #if defined(_WIN32) || defined(__APPLE__)
@@ -3561,6 +3511,8 @@ void OBSBasicSettings::SaveOutputSettings()
 	else if (encoder == SIMPLE_ENCODER_NVENC)
 		presetType = "NVENCPreset";
 #ifdef ENABLE_HEVC
+	else if (encoder == SIMPLE_ENCODER_AMD_HEVC)
+		presetType = "AMDPreset";
 	else if (encoder == SIMPLE_ENCODER_NVENC_HEVC)
 		presetType = "NVENCPreset";
 #endif
@@ -3865,6 +3817,8 @@ void OBSBasicSettings::SaveSettings()
 		SaveVideoSettings();
 	if (hotkeysChanged)
 		SaveHotkeySettings();
+	if (a11yChanged)
+		SaveA11ySettings();
 	if (advancedChanged)
 		SaveAdvancedSettings();
 
@@ -3889,6 +3843,8 @@ void OBSBasicSettings::SaveSettings()
 			AddChangedVal(changed, "video");
 		if (hotkeysChanged)
 			AddChangedVal(changed, "hotkeys");
+		if (a11yChanged)
+			AddChangedVal(changed, "a11y");
 		if (advancedChanged)
 			AddChangedVal(changed, "advanced");
 
@@ -3952,15 +3908,7 @@ void OBSBasicSettings::reject()
 
 void OBSBasicSettings::on_theme_activated(int idx)
 {
-	QString currT = ui->theme->itemText(idx);
-
-	QString defaultTheme;
-	defaultTheme += DEFAULT_THEME;
-	defaultTheme += " ";
-	defaultTheme += QTStr("Default");
-
-	if (currT == defaultTheme)
-		currT = DEFAULT_THEME;
+	QString currT = ui->theme->itemData(idx).toString();
 
 	App()->SetTheme(currT.toUtf8().constData());
 }
@@ -4043,7 +3991,9 @@ void OBSBasicSettings::on_advOutEncoder_currentIndexChanged(int idx)
 		streamEncoderProps = CreateEncoderPropertyView(
 			QT_TO_UTF8(encoder),
 			loadSettings ? "streamEncoder.json" : nullptr, true);
-		ui->advOutputStreamTab->layout()->addWidget(streamEncoderProps);
+		streamEncoderProps->setSizePolicy(QSizePolicy::Preferred,
+						  QSizePolicy::Minimum);
+		ui->advOutEncoderLayout->addWidget(streamEncoderProps);
 	}
 
 	ui->advOutUseRescale->setVisible(true);
@@ -4063,6 +4013,7 @@ void OBSBasicSettings::on_advOutRecEncoder_currentIndexChanged(int idx)
 		ui->advOutRecUseRescale->setChecked(false);
 		ui->advOutRecUseRescale->setVisible(false);
 		ui->advOutRecRescaleContainer->setVisible(false);
+		ui->advOutRecEncoderProps->setVisible(false);
 		return;
 	}
 
@@ -4073,13 +4024,17 @@ void OBSBasicSettings::on_advOutRecEncoder_currentIndexChanged(int idx)
 		recordEncoderProps = CreateEncoderPropertyView(
 			QT_TO_UTF8(encoder),
 			loadSettings ? "recordEncoder.json" : nullptr, true);
-		ui->advOutRecStandard->layout()->addWidget(recordEncoderProps);
+		recordEncoderProps->setSizePolicy(QSizePolicy::Preferred,
+						  QSizePolicy::Minimum);
+		ui->advOutRecEncoderProps->layout()->addWidget(
+			recordEncoderProps);
 		connect(recordEncoderProps, SIGNAL(Changed()), this,
 			SLOT(AdvReplayBufferChanged()));
 	}
 
 	ui->advOutRecUseRescale->setVisible(true);
 	ui->advOutRecRescaleContainer->setVisible(true);
+	ui->advOutRecEncoderProps->setVisible(true);
 }
 
 void OBSBasicSettings::on_advOutFFIgnoreCompat_stateChanged(int)
@@ -4611,6 +4566,15 @@ void OBSBasicSettings::ReloadHotkeys(obs_hotkey_id ignoreKey)
 	LoadHotkeySettings(ignoreKey);
 }
 
+void OBSBasicSettings::A11yChanged()
+{
+	if (!loading) {
+		a11yChanged = true;
+		sender()->setProperty("changed", QVariant(true));
+		EnableApplyButton(true);
+	}
+}
+
 void OBSBasicSettings::AdvancedChanged()
 {
 	if (!loading) {
@@ -4796,12 +4760,16 @@ void OBSBasicSettings::FillSimpleRecordingValues()
 			ENCODER_STR("Hardware.NVENC.H264"),
 			QString(SIMPLE_ENCODER_NVENC));
 #ifdef ENABLE_HEVC
+	if (EncoderAvailable("h265_texture_amf"))
+		ui->simpleOutRecEncoder->addItem(
+			ENCODER_STR("Hardware.AMD.HEVC"),
+			QString(SIMPLE_ENCODER_AMD_HEVC));
 	if (EncoderAvailable("ffmpeg_hevc_nvenc"))
 		ui->simpleOutRecEncoder->addItem(
 			ENCODER_STR("Hardware.NVENC.HEVC"),
 			QString(SIMPLE_ENCODER_NVENC_HEVC));
 #endif
-	if (EncoderAvailable("amd_amf_h264"))
+	if (EncoderAvailable("h264_texture_amf"))
 		ui->simpleOutRecEncoder->addItem(
 			ENCODER_STR("Hardware.AMD.H264"),
 			QString(SIMPLE_ENCODER_AMD));
@@ -4814,42 +4782,6 @@ void OBSBasicSettings::FillSimpleRecordingValues()
 			ENCODER_STR("Hardware.Apple.H264"),
 			QString(SIMPLE_ENCODER_APPLE_H264));
 #undef ADD_QUALITY
-}
-
-void OBSBasicSettings::FillSimpleStreamingValues()
-{
-	ui->simpleOutStrEncoder->addItem(ENCODER_STR("Software"),
-					 QString(SIMPLE_ENCODER_X264));
-	if (EncoderAvailable("obs_qsv11"))
-		ui->simpleOutStrEncoder->addItem(
-			ENCODER_STR("Hardware.QSV.H264"),
-			QString(SIMPLE_ENCODER_QSV));
-	if (EncoderAvailable("ffmpeg_nvenc"))
-		ui->simpleOutStrEncoder->addItem(
-			ENCODER_STR("Hardware.NVENC.H264"),
-			QString(SIMPLE_ENCODER_NVENC));
-#ifdef ENABLE_HEVC
-	if (EncoderAvailable("ffmpeg_hevc_nvenc"))
-		ui->simpleOutStrEncoder->addItem(
-			ENCODER_STR("Hardware.NVENC.HEVC"),
-			QString(SIMPLE_ENCODER_NVENC_HEVC));
-#endif
-	if (EncoderAvailable("amd_amf_h264"))
-		ui->simpleOutStrEncoder->addItem(
-			ENCODER_STR("Hardware.AMD.H264"),
-			QString(SIMPLE_ENCODER_AMD));
-/* Preprocessor guard required for the macOS version check */
-#ifdef __APPLE__
-	if (EncoderAvailable("com.apple.videotoolbox.videoencoder.ave.avc")
-#ifndef __aarch64__
-	    && os_get_emulation_status() == true
-#endif
-	)
-		if (__builtin_available(macOS 13.0, *))
-			ui->simpleOutStrEncoder->addItem(
-				ENCODER_STR("Hardware.Apple.H264"),
-				QString(SIMPLE_ENCODER_APPLE_H264));
-#endif
 #undef ENCODER_STR
 }
 
@@ -4905,9 +4837,12 @@ void OBSBasicSettings::SimpleStreamingEncoderChanged()
 		defaultPreset = "balanced";
 		preset = curQSVPreset;
 
-	} else if (encoder == SIMPLE_ENCODER_NVENC) {
-		obs_properties_t *props =
-			obs_get_encoder_properties("ffmpeg_nvenc");
+	} else if (encoder == SIMPLE_ENCODER_NVENC ||
+		   encoder == SIMPLE_ENCODER_NVENC_HEVC) {
+		const char *name = encoder == SIMPLE_ENCODER_NVENC
+					   ? "ffmpeg_nvenc"
+					   : "ffmpeg_hevc_nvenc";
+		obs_properties_t *props = obs_get_encoder_properties(name);
 
 		obs_property_t *p = obs_properties_get(props, "preset");
 		size_t num = obs_property_list_item_count(p);
@@ -4931,35 +4866,8 @@ void OBSBasicSettings::SimpleStreamingEncoderChanged()
 		defaultPreset = "default";
 		preset = curNVENCPreset;
 
-#ifdef ENABLE_HEVC
-	} else if (encoder == SIMPLE_ENCODER_NVENC_HEVC) {
-		obs_properties_t *props =
-			obs_get_encoder_properties("ffmpeg_hevc_nvenc");
-
-		obs_property_t *p = obs_properties_get(props, "preset");
-		size_t num = obs_property_list_item_count(p);
-		for (size_t i = 0; i < num; i++) {
-			const char *name = obs_property_list_item_name(p, i);
-			const char *val = obs_property_list_item_string(p, i);
-
-			/* bluray is for ideal bluray disc recording settings,
-			 * not streaming */
-			if (strcmp(val, "bd") == 0)
-				continue;
-			/* lossless should of course not be used to stream */
-			if (astrcmp_n(val, "lossless", 8) == 0)
-				continue;
-
-			ui->simpleOutPreset->addItem(QT_UTF8(name), val);
-		}
-
-		obs_properties_destroy(props);
-
-		defaultPreset = "default";
-		preset = curNVENCPreset;
-#endif
-
-	} else if (encoder == SIMPLE_ENCODER_AMD) {
+	} else if (encoder == SIMPLE_ENCODER_AMD ||
+		   encoder == SIMPLE_ENCODER_AMD_HEVC) {
 		ui->simpleOutPreset->addItem("Speed", "speed");
 		ui->simpleOutPreset->addItem("Balanced", "balanced");
 		ui->simpleOutPreset->addItem("Quality", "quality");
@@ -5063,6 +4971,9 @@ void OBSBasicSettings::SimpleReplayBufferChanged()
 	UpdateAutomaticReplayBufferCheckboxes();
 }
 
+#define TEXT_USE_STREAM_ENC \
+	QTStr("Basic.Settings.Output.Adv.Recording.UseStreamEncoder")
+
 void OBSBasicSettings::AdvReplayBufferChanged()
 {
 	obs_data_t *settings;
@@ -5139,8 +5050,7 @@ void OBSBasicSettings::AdvReplayBufferChanged()
 	else
 		ui->advRBEstimate->setText(QTStr(ESTIMATE_UNKNOWN_STR));
 
-	ui->advReplayBufferGroupBox->setVisible(!lossless &&
-						replayBufferEnabled);
+	ui->advReplayBufferFrame->setEnabled(!lossless && replayBufferEnabled);
 	ui->advReplayBuf->setEnabled(!lossless);
 
 	UpdateAutomaticReplayBufferCheckboxes();
@@ -5398,6 +5308,11 @@ QIcon OBSBasicSettings::GetHotkeysIcon() const
 	return hotkeysIcon;
 }
 
+QIcon OBSBasicSettings::GetAccessibilityIcon() const
+{
+	return accessibilityIcon;
+}
+
 QIcon OBSBasicSettings::GetAdvancedIcon() const
 {
 	return advancedIcon;
@@ -5433,9 +5348,14 @@ void OBSBasicSettings::SetHotkeysIcon(const QIcon &icon)
 	ui->listWidget->item(5)->setIcon(icon);
 }
 
-void OBSBasicSettings::SetAdvancedIcon(const QIcon &icon)
+void OBSBasicSettings::SetAccessibilityIcon(const QIcon &icon)
 {
 	ui->listWidget->item(6)->setIcon(icon);
+}
+
+void OBSBasicSettings::SetAdvancedIcon(const QIcon &icon)
+{
+	ui->listWidget->item(7)->setIcon(icon);
 }
 
 int OBSBasicSettings::CurrentFLVTrack()
@@ -5485,4 +5405,19 @@ void OBSBasicSettings::RecreateOutputResolutionWidget()
 
 	ui->outputResolution->lineEdit()->setValidator(
 		ui->baseResolution->lineEdit()->validator());
+}
+
+void OBSBasicSettings::UpdateAdvNetworkGroup()
+{
+	bool enabled = IsServiceOutputHasNetworkFeatures();
+
+	ui->advNetworkDisabled->setVisible(!enabled);
+
+	ui->bindToIPLabel->setVisible(enabled);
+	ui->bindToIP->setVisible(enabled);
+	ui->dynBitrate->setVisible(enabled);
+#ifdef _WIN32
+	ui->enableNewSocketLoop->setVisible(enabled);
+	ui->enableLowLatencyMode->setVisible(enabled);
+#endif
 }
