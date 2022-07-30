@@ -171,9 +171,10 @@ public:
 				 PropertiesReloadCallback reloadCallback,  \
 				 PropertiesUpdateCallback callback,        \
 				 PropertiesVisualUpdateCb cb = nullptr,    \
-				 int minSize = 0)                          \
+				 int minSize = 0,                          \
+				 bool narrow = false)                      \
 		: OBSPropertiesView(settings, (obs_object_t *)type,        \
-				    reloadCallback, callback, cb, minSize) \
+				    reloadCallback, callback, cb, minSize, narrow) \
 	{                                                                  \
 	}
 
